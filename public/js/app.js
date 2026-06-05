@@ -119,6 +119,55 @@ async function loadEvents() {
   }).join("") || `<p>Brak wydarzeń.</p>`;
 }
 
+async function renderEvent(id) {
+  const data = await api(`/api/event/${id}`);
+
+  let currentEvent = null;
+  let currentSeats = [];
+
+  const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
+
+  app.innerHTML = `
+    <section class="details-hero ${currentEvent.template}" style="background-image:url('${currentEvent.image_url}')">
+      <div class="details-inner">
+        <span class="pill">${currentEvent.category}</span>
+        <h1>${currentEvent.title}</h1>
+        <p>📅 ${datePL(currentEvent.event_date)}, ${currentEvent.event_time} &nbsp; 📍 ${currentEvent.location}</p>
+      </div>
+    </section>
+
+    <section class="two-col">
+      <article class="panel ${panelClass}">
+        <h2>${currentEvent.template === "concert" ? "Koncertowy opis wydarzenia" : "Opis wydarzenia"}</h2>
+        <p>${currentEvent.description}</p>
+
+        <div class="info-grid">
+          <div class="info"><small>Data</small><b>${datePL(currentEvent.event_date)}</b></div>
+          <div class="info"><small>Godzina</small><b>${currentEvent.event_time}</b></div>
+          <div class="info"><small>Lokalizacja</small><b>${currentEvent.location}</b></div>
+          <div class="info"><small>Adres</small><b>${currentEvent.address}</b></div>
+          <div class="info"><small>Wolne miejsca</small><b>${currentEvent.seats_available}</b></div>
+          <div class="info"><small>Szablon</small><b>${currentEvent.template === "concert" ? "Koncertowy" : "Klasyczny"}</b></div>
+        </div>
+
+        <h3>Informacje organizacyjne</h3>
+        <p>Po rezerwacji miejsce zostaje oznaczone jako zajęte w bazie danych. System blokuje ponowną rezerwację tego samego miejsca.</p>
+      </article>
+
+      <aside class="panel">
+        <h2>Rezerwacja</h2>
+        <p class="meta">Wybierz konkretne miejsce na interaktywnej mapie sali.</p>
+        <div class="price">
+          <span>Cena od</span>
+          <span>${money(currentEvent.price)}</span>
+        </div>
+        <br>
+        <button class="primary" style="width:100%" onclick="location.hash='reserve/${currentEvent.id}'">Wybierz miejsce</button>
+      </aside>
+    </section>
+  `;
+}
+
 /* =========================
    ROUTER
 ========================= */
