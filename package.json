@@ -1,0 +1,15 @@
+{
+  "name": "event-reservation-cloudflare-d1",
+  "version": "1.0.0",
+  "description": "Aplikacja do tworzenia eventów i rezerwacji miejsc - Cloudflare Pages + D1",
+  "scripts": {
+    "dev": "wrangler pages dev public --compatibility-date=2026-06-04",
+    "d1:create": "wrangler d1 create mojebilety-db",
+    "d1:migrate:local": "wrangler d1 migrations apply mojebilety-db --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply mojebilety-db --remote",
+    "deploy": "wrangler pages deploy public"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
