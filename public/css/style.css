@@ -79,4 +79,17 @@ nav button:hover,.secondary:hover{background:#e5e7eb}
 .actions {display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;}
 .lookup-card {margin-top: 18px;}
 .notice.error {background: #fef2f2; color: #991b1b;border: 1px solid #fecaca;}
+.admin-layout{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 66px)}
+.sidebar{background:#070b14;color:#fff;padding:22px}
+.sidebar button{width:100%;text-align:left;background:transparent;color:#e5e7eb;padding:12px;border-radius:10px;margin-bottom:6px}
+.sidebar button:hover{background:#4c1d95}
+.admin-main{padding:26px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:18px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+.stat strong{display:block;font-size:30px;color:var(--primary)}
+.table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.table th,.table td{padding:13px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+.table th{background:#f8fafc}
+.danger{background:#fee2e2;color:#991b1b;border-radius:9px;padding:9px 12px;font-weight:800}
+.actions {display: flex; gap: 7px; flex-wrap: wrap;}
 @media(max-width:950px){.grid,.two-col,.seat-layout,.admin-layout,.stats{grid-template-columns:1fr}.searchbar{grid-template-columns:1fr}.topbar{padding:0 16px}nav{display:none}.info-grid{grid-template-columns:1fr}}

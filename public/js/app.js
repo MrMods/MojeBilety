@@ -563,6 +563,163 @@ async function adminDashboard() {
   `;
 }
 
+async function adminEvents() {
+  const events = await api("/api/admin/events");
+
+  document.querySelector("#adminMain").innerHTML = `
+    <div class="section-head">
+      <h1>Wydarzenia</h1>
+      <button class="primary" onclick="adminView='add';renderAdmin()">+ Dodaj</button>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nazwa</th>
+          <th>Data</th>
+          <th>Miejsce</th>
+          <th>Status</th>
+          <th>Miejsca</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${events.map(e => `
+          <tr>
+            <td>${e.title}</td>
+            <td>${datePL(e.event_date)} ${e.event_time}</td>
+            <td>${e.location}</td>
+            <td>${e.status}</td>
+            <td>${e.seats_available}/${e.seats_total}</td>
+            <td class="actions">
+              <button class="secondary" disabled>Edytuj</button>
+              <button class="secondary" disabled>Miejsca</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function eventFormHtml(e = {}) {
+  return `
+    <form id="eventForm" class="panel">
+      <div class="info-grid">
+        <div class="form-group">
+          <label>Nazwa</label>
+          <input name="title" required value="${e.title || ""}">
+        </div>
+
+        <div class="form-group">
+          <label>Kategoria</label>
+          <select name="category">
+            ${["Koncert", "Warsztat", "Konferencja", "Sport", "Teatr", "Inne"].map(c => `
+              <option ${e.category === c ? "selected" : ""}>${c}</option>
+            `).join("")}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Data</label>
+          <input name="event_date" type="date" required value="${e.event_date || ""}">
+        </div>
+
+        <div class="form-group">
+          <label>Godzina</label>
+          <input name="event_time" type="time" required value="${e.event_time || ""}">
+        </div>
+
+        <div class="form-group">
+          <label>Lokalizacja</label>
+          <input name="location" required value="${e.location || ""}">
+        </div>
+
+        <div class="form-group">
+          <label>Adres</label>
+          <input name="address" required value="${e.address || ""}">
+        </div>
+
+        <div class="form-group">
+          <label>Cena bazowa</label>
+          <input name="price" type="number" min="0" value="${e.price ?? 0}">
+        </div>
+
+        <div class="form-group">
+          <label>Szablon</label>
+          <select name="template">
+            <option value="classic" ${e.template === "classic" ? "selected" : ""}>Klasyczny</option>
+            <option value="concert" ${e.template === "concert" ? "selected" : ""}>Koncertowy</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            ${["draft", "active", "sold_out", "ended", "cancelled"].map(s => `
+              <option value="${s}" ${e.status === s ? "selected" : ""}>${s}</option>
+            `).join("")}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Liczba rzędów</label>
+          <input name="rows_count" type="number" min="1" value="6">
+        </div>
+
+        <div class="form-group">
+          <label>Miejsc w rzędzie</label>
+          <input name="seats_per_row" type="number" min="1" value="10">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Link do zdjęcia</label>
+        <input 
+          name="image_url" 
+          value="${e.image_url || "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=1600&q=80"}"
+        >
+      </div>
+
+      <div class="form-group">
+        <label>Opis</label>
+        <textarea name="description">${e.description || ""}</textarea>
+      </div>
+
+      <button class="primary">
+        Utwórz wydarzenie
+      </button>
+    </form>
+  `;
+}
+
+function adminAdd() {
+  document.querySelector("#adminMain").innerHTML = `
+    <h1>Dodaj wydarzenie</h1>
+    ${eventFormHtml()}
+  `;
+
+  document.querySelector("#eventForm").onsubmit = async e => {
+    e.preventDefault();
+
+    const fd = Object.fromEntries(new FormData(e.target).entries());
+
+    try {
+      await api("/api/admin/events", {
+        method: "POST",
+        body: JSON.stringify(fd)
+      });
+
+      alert("Dodano wydarzenie.");
+      adminView = "events";
+      renderAdmin();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+}
+
 /* =========================
    ROUTER
 ========================= */
