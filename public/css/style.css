@@ -70,4 +70,13 @@ nav button:hover,.secondary:hover{background:#e5e7eb}
 .selected{background:#2563eb!important;border-color:#111827}
 .notice{background:#eef2ff;border:1px solid #c7d2fe;color:#312e81;padding:13px;border-radius:12px;margin:12px 0}
 .footer{display:flex;justify-content:space-between;gap:20px;padding:28px 34px;background:#fff;border-top:1px solid var(--line);color:var(--muted)}
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:13px}
+.form-group label{font-size:13px;font-weight:800}
+.form-group input,.form-group select,.form-group textarea{border:1px solid var(--line);border-radius:10px;padding:13px;outline:none}
+.form-group textarea{min-height:110px}
+.checkbox {display: flex; gap: 8px; margin: 12px 0 16px; color: var(--muted);font-size: 14px;}
+.confirm {background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 28px;box-shadow: 0 8px 28px rgba(20, 24, 39, .06);}
+.actions {display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;}
+.lookup-card {margin-top: 18px;}
+.notice.error {background: #fef2f2; color: #991b1b;border: 1px solid #fecaca;}
 @media(max-width:950px){.grid,.two-col,.seat-layout,.admin-layout,.stats{grid-template-columns:1fr}.searchbar{grid-template-columns:1fr}.topbar{padding:0 16px}nav{display:none}.info-grid{grid-template-columns:1fr}}

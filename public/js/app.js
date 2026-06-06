@@ -217,21 +217,50 @@ async function renderReserve(id) {
       </div>
 
       <aside class="panel">
-        <h2>Rezerwacja</h2>
-        <p>Najpierw wybierz miejsce na mapie sali.</p>
+        <h2>Formularz rezerwacji</h2>
+        <p>Wybierz miejsce, a następnie uzupełnij dane.</p>
 
         <p>
           Wybrane miejsce:
           <strong id="selectedSeatLabel">brak</strong>
         </p>
 
-        <button class="primary" style="width:100%" disabled>
-        </button>
+        <form id="reservationForm">
+          <div class="form-group">
+            <label>Imię</label>
+            <input name="first_name" required>
+          </div>
+
+          <div class="form-group">
+            <label>Nazwisko</label>
+            <input name="last_name" required>
+          </div>
+
+          <div class="form-group">
+            <label>E-mail</label>
+            <input name="email" type="email" required>
+          </div>
+
+          <div class="form-group">
+            <label>Telefon</label>
+            <input name="phone" minlength="7" required>
+          </div>
+
+          <label class="checkbox">
+            <input type="checkbox" required>
+            Akceptuję regulamin.
+          </label>
+
+          <button class="primary" style="width:100%">
+            Zarezerwuj
+          </button>
+        </form>
       </aside>
     </section>
   `;
 
   drawSeats();
+  document.querySelector("#reservationForm").onsubmit = submitReservation;
 }
 
 function seatClass(seat) {
@@ -285,6 +314,153 @@ function selectSeat(id) {
   document.querySelector("#seatInfo").innerHTML = `
     Wybrano miejsce <strong>${seat.row_label}${seat.seat_number}</strong>.
   `;
+}
+async function submitReservation(e) {
+  e.preventDefault();
+
+  if (!selectedSeatId) {
+    alert("Najpierw wybierz miejsce.");
+    return;
+  }
+
+  const form = new FormData(e.target);
+
+  const payload = {
+    event_id: currentEvent.id,
+    seat_id: selectedSeatId,
+    first_name: form.get("first_name"),
+    last_name: form.get("last_name"),
+    email: form.get("email"),
+    phone: form.get("phone")
+  };
+
+  try {
+    const reservation = await api("/api/reserve", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    renderConfirm(reservation);
+  } catch (err) {
+    alert(err.message);
+  }
+}
+function renderConfirm(reservation) {
+  app.innerHTML = `
+    <section class="container">
+      <div class="confirm">
+        <div class="notice">
+          Rezerwacja została utworzona.
+        </div>
+
+        <h1>Potwierdzenie rezerwacji</h1>
+
+        <p>
+          Zachowaj kod rezerwacji. Będzie potrzebny do sprawdzenia statusu.
+        </p>
+
+        <div class="info-grid">
+          <div class="info">
+            <small>Kod rezerwacji</small>
+            <b>${reservation.reservation_code || reservation.code}</b>
+          </div>
+
+          <div class="info">
+            <small>Wydarzenie</small>
+            <b>${currentEvent.title}</b>
+          </div>
+
+          <div class="info">
+            <small>Status</small>
+            <b>${reservation.status || "confirmed"}</b>
+          </div>
+
+          <div class="info">
+            <small>ID rezerwacji</small>
+            <b>${reservation.id}</b>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" onclick="location.hash='home'">
+            Wróć do wydarzeń
+          </button>
+
+          <button class="secondary" onclick="location.hash='lookup'">
+            Sprawdź rezerwację
+          </button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+function renderLookup() {
+  app.innerHTML = `
+    <section class="container">
+      <div class="panel">
+        <h1>Sprawdź rezerwację</h1>
+        <p>Wpisz kod rezerwacji, aby zobaczyć jej status.</p>
+
+        <div class="form-group">
+          <label>Kod rezerwacji</label>
+          <input id="lookupCode" placeholder="np. ABC123">
+        </div>
+
+        <button class="primary" onclick="lookupReservation()">
+          Sprawdź
+        </button>
+
+        <div id="lookupResult"></div>
+      </div>
+    </section>
+  `;
+}
+async function lookupReservation() {
+  const code = document.querySelector("#lookupCode").value.trim();
+  const result = document.querySelector("#lookupResult");
+
+  if (!code) {
+    result.innerHTML = `<p class="bad">Podaj kod rezerwacji.</p>`;
+    return;
+  }
+
+  try {
+    const reservation = await api(`/api/reservation/${code}`);
+
+    result.innerHTML = `
+      <div class="confirm lookup-card">
+        <h2>Rezerwacja znaleziona</h2>
+
+        <div class="info-grid">
+          <div class="info">
+            <small>Kod</small>
+            <b>${reservation.reservation_code || reservation.code}</b>
+          </div>
+
+          <div class="info">
+            <small>Status</small>
+            <b>${reservation.status}</b>
+          </div>
+
+          <div class="info">
+            <small>Imię</small>
+            <b>${reservation.first_name || "-"}</b>
+          </div>
+
+          <div class="info">
+            <small>Nazwisko</small>
+            <b>${reservation.last_name || "-"}</b>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    result.innerHTML = `
+      <div class="notice error">
+        Nie znaleziono rezerwacji o podanym kodzie.
+      </div>
+    `;
+  }
 }
 /* =========================
    ROUTER
