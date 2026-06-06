@@ -720,6 +720,145 @@ function adminAdd() {
   };
 }
 
+async function adminReservations() {
+  const reservations = await api("/api/admin/reservations");
+
+  document.querySelector("#adminMain").innerHTML = `
+    <h1>Rezerwacje</h1>
+
+    <div class="panel">
+      <input 
+        id="resSearch" 
+        placeholder="Szukaj po nazwisku, e-mailu lub wydarzeniu..."
+        class="admin-search"
+        oninput="filterReservations()"
+      >
+
+      <div id="resTable">
+        ${reservationsTable(reservations)}
+      </div>
+    </div>
+  `;
+
+  window.__reservations = reservations;
+}
+
+function filterReservations() {
+  const q = document.querySelector("#resSearch").value.toLowerCase();
+
+  const rows = (window.__reservations || []).filter(r => {
+    return `${r.first_name} ${r.last_name} ${r.email} ${r.event_title}`
+      .toLowerCase()
+      .includes(q);
+  });
+
+  document.querySelector("#resTable").innerHTML = reservationsTable(rows);
+}
+
+function reservationsTable(rows) {
+  if (!rows.length) {
+    return `<p>Brak rezerwacji.</p>`;
+  }
+
+  return `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Numer</th>
+          <th>Osoba</th>
+          <th>E-mail</th>
+          <th>Wydarzenie</th>
+          <th>Miejsce</th>
+          <th>Status</th>
+          <th>Akcja</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td>${r.reservation_code}</td>
+            <td>${r.first_name} ${r.last_name}</td>
+            <td>${r.email}</td>
+            <td>${r.event_title}</td>
+            <td>${r.sector}-${r.row_label}-${r.seat_number}</td>
+            <td>${r.status}</td>
+            <td>
+              ${r.status === "active" ? `
+                <button class="danger" onclick="cancelReservation('${r.reservation_code}')">
+                  Anuluj
+                </button>
+              ` : "—"}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+async function cancelReservation(code) {
+  if (!confirm("Anulować rezerwację?")) return;
+
+  try {
+    await api("/api/admin/reservations", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "cancel",
+        reservation_code: code
+      })
+    });
+
+    adminReservations();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function adminManageSeats(id) {
+  const data = await api(`/api/admin/seats/${id}`);
+
+  document.querySelector("#adminMain").innerHTML = `
+    <button class="secondary" onclick="adminEvents()">← Wróć</button>
+    <h1>Miejsca: ${data.event.title}</h1>
+    <p class="meta">Kliknij miejsce, aby zmienić status, typ lub cenę.</p>
+
+    <div class="admin-seat-box">
+      ${data.seats.map(s => `
+        <button class="admin-seat ${seatClass(s)}" onclick="adminEditSeat(${id},${s.id})">
+          ${s.row_label}${s.seat_number}<br>${s.status}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function adminEditSeat(eventId, seatId) {
+  const status = prompt("Status miejsca: available / reserved / blocked", "blocked");
+  if (!status) return;
+
+  const type = prompt("Typ miejsca: standard / vip / balcony", "standard");
+  if (!type) return;
+
+  const price = prompt("Cena miejsca", "0");
+  if (price === null) return;
+
+  try {
+    await api(`/api/admin/seats/${eventId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        seat_id: seatId,
+        status,
+        seat_type: type,
+        price
+      })
+    });
+
+    await adminManageSeats(eventId);
+  } catch (err) {
+    alert(err.message);
+  }
+}
 /* =========================
    ROUTER
 ========================= */

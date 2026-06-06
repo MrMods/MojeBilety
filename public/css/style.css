@@ -92,4 +92,12 @@ nav button:hover,.secondary:hover{background:#e5e7eb}
 .table th{background:#f8fafc}
 .danger{background:#fee2e2;color:#991b1b;border-radius:9px;padding:9px 12px;font-weight:800}
 .actions {display: flex; gap: 7px; flex-wrap: wrap;}
+.admin-search {width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px;}
+.admin-seat-box {display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 10px;}
+.admin-seat {height: 44px; border-radius: 10px; font-size: 11px; font-weight: 900; color: #111; background: #e5e7eb;}
+.admin-seat.available {background: #bbf7d0;}
+.admin-seat.reserved {background: #e5e7eb;}
+.admin-seat.blocked {background: #fecaca;}
+.admin-seat.vip {background: #fde68a;}
+.admin-seat.balcony {background: #ddd6fe;}
 @media(max-width:950px){.grid,.two-col,.seat-layout,.admin-layout,.stats{grid-template-columns:1fr}.searchbar{grid-template-columns:1fr}.topbar{padding:0 16px}nav{display:none}.info-grid{grid-template-columns:1fr}}
