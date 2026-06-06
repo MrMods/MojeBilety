@@ -1,5 +1,12 @@
 ﻿const app = document.querySelector("#app");
 
+  let currentEvent = null;
+  let currentSeats = [];
+  let selectedSeatId = null;
+
+  let adminToken = localStorage.getItem("adminToken") || "";
+  let adminView = "dashboard";
+
 function money(v) {
   return Number(v) === 0 ? "Darmowe" : Number(v).toFixed(2).replace(".", ",") + " zł";
 }
@@ -121,11 +128,6 @@ async function loadEvents() {
 
 async function renderEvent(id) {
   const data = await api(`/api/event/${id}`);
-
-  let currentEvent = null;
-  let currentSeats = [];
-  let selectedSeatId = null;
-
   const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
 
   app.innerHTML = `
@@ -462,6 +464,105 @@ async function lookupReservation() {
     `;
   }
 }
+/* =========================
+   ADMIN
+========================= */
+
+function renderAdminLogin() {
+  app.innerHTML = `
+    <section class="container">
+      <div class="panel" style="max-width:430px;margin:auto">
+        <h1>Logowanie administratora</h1>
+        <div class="notice">Demo: <b>admin@demo.pl</b> / <b>admin123</b></div>
+
+        <form id="loginForm">
+          <div class="form-group">
+            <label>E-mail</label>
+            <input name="email" type="email" required>
+          </div>
+
+          <div class="form-group">
+            <label>Hasło</label>
+            <input name="password" type="password" required>
+          </div>
+
+          <button class="primary" style="width:100%">Zaloguj</button>
+        </form>
+      </div>
+    </section>
+  `;
+
+  document.querySelector("#loginForm").onsubmit = async e => {
+    e.preventDefault();
+
+    const fd = new FormData(e.target);
+
+    try {
+      const res = await api("/api/admin/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: fd.get("email"),
+          password: fd.get("password")
+        })
+      });
+
+      adminToken = res.token;
+      localStorage.setItem("adminToken", adminToken);
+
+      renderAdmin();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+}
+
+function renderAdmin() {
+  if (!adminToken) return renderAdminLogin();
+
+  app.innerHTML = `
+    <section class="admin-layout">
+      <aside class="sidebar">
+        <h3>Panel admina</h3>
+        <button onclick="adminView='dashboard';renderAdmin()">Dashboard</button>
+        <button onclick="adminView='events';renderAdmin()">Wydarzenia</button>
+        <button onclick="adminView='add';renderAdmin()">Dodaj wydarzenie</button>
+        <button onclick="adminView='reservations';renderAdmin()">Rezerwacje</button>
+        <button onclick="localStorage.removeItem('adminToken');adminToken='';location.hash='home'">Wyloguj</button>
+      </aside>
+
+      <main class="admin-main" id="adminMain"></main>
+    </section>
+  `;
+
+  if (adminView === "dashboard") adminDashboard();
+  if (adminView === "events") adminEvents();
+  if (adminView === "add") adminAdd();
+  if (adminView === "reservations") adminReservations();
+}
+
+async function adminDashboard() {
+  const events = await api("/api/admin/events");
+  const reservations = await api("/api/admin/reservations");
+
+  const free = events.reduce((s, e) => s + Number(e.seats_available || 0), 0);
+
+  document.querySelector("#adminMain").innerHTML = `
+    <h1>Dashboard</h1>
+
+    <div class="stats">
+      <div class="stat"><strong>${events.length}</strong><span>Wydarzenia</span></div>
+      <div class="stat"><strong>${reservations.length}</strong><span>Rezerwacje</span></div>
+      <div class="stat"><strong>${free}</strong><span>Wolne miejsca</span></div>
+      <div class="stat"><strong>${events.filter(e => e.status === "active").length}</strong><span>Aktywne</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Ostatnie rezerwacje</h2>
+      ${reservationsTable(reservations.slice(0, 5))}
+    </div>
+  `;
+}
+
 /* =========================
    ROUTER
 ========================= */
