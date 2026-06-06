@@ -124,6 +124,7 @@ async function renderEvent(id) {
 
   let currentEvent = null;
   let currentSeats = [];
+  let selectedSeatId = null;
 
   const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
 
@@ -168,6 +169,123 @@ async function renderEvent(id) {
   `;
 }
 
+async function renderReserve(id) {
+  const data = await api(`/api/event/${id}`);
+
+  currentEvent = data.event;
+  currentSeats = data.seats;
+  selectedSeatId = null;
+
+  if (currentEvent.status !== "active") {
+    app.innerHTML = `
+      <section class="container">
+        <div class="panel">
+          <h1>Rezerwacja niedostępna</h1>
+          <p>To wydarzenie nie jest aktualnie aktywne.</p>
+          <button class="primary" onclick="location.hash='event/${currentEvent.id}'">Wróć</button>
+        </div>
+      </section>
+    `;
+    return;
+  }
+
+  app.innerHTML = `
+    <section class="seat-layout">
+      <div class="seat-map">
+        <button class="secondary" onclick="location.hash='event/${currentEvent.id}'">← Wróć do wydarzenia</button>
+        <h2>${currentEvent.title}</h2>
+
+        <div class="legend">
+          <span><i class="dot available-dot"></i>Dostępne</span>
+          <span><i class="dot selected-dot"></i>Wybrane</span>
+          <span><i class="dot reserved-dot"></i>Zarezerwowane</span>
+          <span><i class="dot blocked-dot"></i>Zablokowane</span>
+          <span><i class="dot vip-dot"></i>VIP</span>
+        </div>
+
+        <div class="stage">SCENA</div>
+
+        <div 
+          id="seatsGrid" 
+          class="seats-grid" 
+          style="grid-template-columns: repeat(${currentEvent.seats_per_row}, 34px)"
+        ></div>
+
+        <div id="seatInfo" class="notice">
+          Kliknij dostępne miejsce, aby je wybrać.
+        </div>
+      </div>
+
+      <aside class="panel">
+        <h2>Rezerwacja</h2>
+        <p>Najpierw wybierz miejsce na mapie sali.</p>
+
+        <p>
+          Wybrane miejsce:
+          <strong id="selectedSeatLabel">brak</strong>
+        </p>
+
+        <button class="primary" style="width:100%" disabled>
+        </button>
+      </aside>
+    </section>
+  `;
+
+  drawSeats();
+}
+
+function seatClass(seat) {
+  if (seat.status === "reserved") return "reserved";
+  if (seat.status === "blocked") return "blocked";
+  if (seat.type === "vip") return "vip";
+  return "available";
+}
+
+function drawSeats() {
+  const seatsGrid = document.querySelector("#seatsGrid");
+
+  seatsGrid.innerHTML = currentSeats.map(seat => {
+    const cls = seatClass(seat);
+    const disabled = seat.status !== "available" ? "disabled" : "";
+
+    return `
+      <button 
+        class="seat ${cls}" 
+        ${disabled}
+        onclick="selectSeat(${seat.id})"
+        title="Rząd ${seat.row_label}, miejsce ${seat.seat_number}"
+      >
+        ${seat.row_label}${seat.seat_number}
+      </button>
+    `;
+  }).join("");
+}
+
+function selectSeat(id) {
+  const seat = currentSeats.find(s => s.id === id);
+
+  if (!seat || seat.status !== "available") {
+    return;
+  }
+
+  selectedSeatId = id;
+
+  document.querySelectorAll(".seat").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  const selectedButton = [...document.querySelectorAll(".seat")]
+    .find(btn => btn.textContent.trim() === `${seat.row_label}${seat.seat_number}`);
+
+  if (selectedButton) {
+    selectedButton.classList.add("selected");
+  }
+
+  document.querySelector("#selectedSeatLabel").textContent = `${seat.row_label}${seat.seat_number}`;
+  document.querySelector("#seatInfo").innerHTML = `
+    Wybrano miejsce <strong>${seat.row_label}${seat.seat_number}</strong>.
+  `;
+}
 /* =========================
    ROUTER
 ========================= */
