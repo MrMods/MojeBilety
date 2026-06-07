@@ -1,11 +1,10 @@
 ﻿const app = document.querySelector("#app");
 
-  let currentEvent = null;
-  let currentSeats = [];
-  let selectedSeatId = null;
-
-  let adminToken = localStorage.getItem("adminToken") || "";
-  let adminView = "dashboard";
+let selectedSeatId = null;
+let currentEvent = null;
+let currentSeats = [];
+let adminToken = localStorage.getItem("adminToken") || "";
+let adminView = "dashboard";
 
 function money(v) {
   return Number(v) === 0 ? "Darmowe" : Number(v).toFixed(2).replace(".", ",") + " zł";
@@ -51,7 +50,6 @@ function setHash(name) {
 /* =========================
    USER
 ========================= */
-
 async function renderHome() {
   app.innerHTML = `
     <section class="hero">
@@ -128,6 +126,10 @@ async function loadEvents() {
 
 async function renderEvent(id) {
   const data = await api(`/api/event/${id}`);
+
+  currentEvent = data.event;
+  currentSeats = data.seats;
+
   const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
 
   app.innerHTML = `
@@ -183,8 +185,7 @@ async function renderReserve(id) {
       <section class="container">
         <div class="panel">
           <h1>Rezerwacja niedostępna</h1>
-          <p>To wydarzenie nie jest aktualnie aktywne.</p>
-          <button class="primary" onclick="location.hash='event/${currentEvent.id}'">Wróć</button>
+          <p>To wydarzenie nie jest aktywne.</p>
         </div>
       </section>
     `;
@@ -194,38 +195,27 @@ async function renderReserve(id) {
   app.innerHTML = `
     <section class="seat-layout">
       <div class="seat-map">
-        <button class="secondary" onclick="location.hash='event/${currentEvent.id}'">← Wróć do wydarzenia</button>
+        <button class="secondary" onclick="location.hash='event/${currentEvent.id}'">← Wróć</button>
         <h2>${currentEvent.title}</h2>
 
         <div class="legend">
-          <span><i class="dot available-dot"></i>Dostępne</span>
-          <span><i class="dot selected-dot"></i>Wybrane</span>
-          <span><i class="dot reserved-dot"></i>Zarezerwowane</span>
-          <span><i class="dot blocked-dot"></i>Zablokowane</span>
-          <span><i class="dot vip-dot"></i>VIP</span>
+          <span><i class="dot" style="background:#7bd957"></i>Dostępne</span>
+          <span><i class="dot" style="background:#2563eb"></i>Wybrane</span>
+          <span><i class="dot" style="background:#cfd3da"></i>Zarezerwowane</span>
+          <span><i class="dot" style="background:#ef4444"></i>Zablokowane</span>
+          <span><i class="dot" style="background:#f59e0b"></i>VIP</span>
+          <span><i class="dot" style="background:#a855f7"></i>Balkon</span>
         </div>
 
         <div class="stage">SCENA</div>
 
-        <div 
-          id="seatsGrid" 
-          class="seats-grid" 
-          style="grid-template-columns: repeat(${currentEvent.seats_per_row}, 34px)"
-        ></div>
+        <div id="seatsGrid" class="seats-grid" style="grid-template-columns:repeat(${currentEvent.seats_per_row},25px)"></div>
 
-        <div id="seatInfo" class="notice">
-          Kliknij dostępne miejsce, aby je wybrać.
-        </div>
+        <div id="seatInfo" class="notice">Kliknij dostępne miejsce.</div>
       </div>
 
       <aside class="panel">
         <h2>Formularz rezerwacji</h2>
-        <p>Wybierz miejsce, a następnie uzupełnij dane.</p>
-
-        <p>
-          Wybrane miejsce:
-          <strong id="selectedSeatLabel">brak</strong>
-        </p>
 
         <form id="reservationForm">
           <div class="form-group">
@@ -248,75 +238,54 @@ async function renderReserve(id) {
             <input name="phone" minlength="7" required>
           </div>
 
-          <label class="checkbox">
-            <input type="checkbox" required>
-            Akceptuję regulamin.
+          <label style="display:flex;gap:8px;margin:12px 0 16px">
+            <input type="checkbox" required> Akceptuję regulamin.
           </label>
 
-          <button class="primary" style="width:100%">
-            Zarezerwuj
-          </button>
+          <button class="primary" style="width:100%">Zarezerwuj</button>
         </form>
       </aside>
     </section>
   `;
 
   drawSeats();
+
   document.querySelector("#reservationForm").onsubmit = submitReservation;
 }
 
-function seatClass(seat) {
-  if (seat.status === "reserved") return "reserved";
-  if (seat.status === "blocked") return "blocked";
-  if (seat.type === "vip") return "vip";
-  return "available";
+function seatClass(s) {
+  if (s.status === "available" && s.seat_type === "vip") return "vip";
+  if (s.status === "available" && s.seat_type === "balcony") return "balcony";
+  return s.status;
 }
 
 function drawSeats() {
-  const seatsGrid = document.querySelector("#seatsGrid");
-
-  seatsGrid.innerHTML = currentSeats.map(seat => {
-    const cls = seatClass(seat);
-    const disabled = seat.status !== "available" ? "disabled" : "";
-
-    return `
-      <button 
-        class="seat ${cls}" 
-        ${disabled}
-        onclick="selectSeat(${seat.id})"
-        title="Rząd ${seat.row_label}, miejsce ${seat.seat_number}"
-      >
-        ${seat.row_label}${seat.seat_number}
-      </button>
-    `;
-  }).join("");
+  document.querySelector("#seatsGrid").innerHTML = currentSeats.map(s => `
+    <button 
+      class="seat ${seatClass(s)}"
+      ${s.status !== "available" ? "disabled" : ""}
+      onclick="selectSeat(${s.id})"
+      title="Rząd ${s.row_label}, miejsce ${s.seat_number}">
+    </button>
+  `).join("");
 }
 
 function selectSeat(id) {
-  const seat = currentSeats.find(s => s.id === id);
-
-  if (!seat || seat.status !== "available") {
-    return;
-  }
-
   selectedSeatId = id;
 
-  document.querySelectorAll(".seat").forEach(btn => {
-    btn.classList.remove("selected");
-  });
+  const seat = currentSeats.find(s => s.id === id);
 
-  const selectedButton = [...document.querySelectorAll(".seat")]
-    .find(btn => btn.textContent.trim() === `${seat.row_label}${seat.seat_number}`);
+  document.querySelectorAll(".seat").forEach(x => x.classList.remove("selected"));
 
-  if (selectedButton) {
-    selectedButton.classList.add("selected");
-  }
+  const idx = currentSeats.findIndex(s => s.id === id);
+  document.querySelectorAll(".seat")[idx].classList.add("selected");
 
-  document.querySelector("#selectedSeatLabel").textContent = `${seat.row_label}${seat.seat_number}`;
   document.querySelector("#seatInfo").innerHTML = `
-    Wybrano miejsce <strong>${seat.row_label}${seat.seat_number}</strong>.
+    <b>Wybrane miejsce:</b> sektor ${seat.sector}, rząd ${seat.row_label}, miejsce ${seat.seat_number}<br>
+    Typ: ${seat.seat_type.toUpperCase()} • Cena: ${money(seat.price)}
   `;
 }
+
 async function submitReservation(e) {
   e.preventDefault();
 
@@ -327,147 +296,88 @@ async function submitReservation(e) {
 
   const form = new FormData(e.target);
 
-  const payload = {
-    event_id: currentEvent.id,
-    seat_id: selectedSeatId,
-    first_name: form.get("first_name"),
-    last_name: form.get("last_name"),
-    email: form.get("email"),
-    phone: form.get("phone")
-  };
-
   try {
-    const reservation = await api("/api/reserve", {
+    const data = await api("/api/reserve", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        event_id: currentEvent.id,
+        seat_id: selectedSeatId,
+        first_name: form.get("first_name"),
+        last_name: form.get("last_name"),
+        email: form.get("email"),
+        phone: form.get("phone")
+      })
     });
 
-    renderConfirm(reservation);
+    renderConfirm(data.reservation);
   } catch (err) {
     alert(err.message);
   }
 }
-function renderConfirm(reservation) {
+
+function renderConfirm(r) {
   app.innerHTML = `
-    <section class="container">
-      <div class="confirm">
-        <div class="notice">
-          Rezerwacja została utworzona.
-        </div>
+    <section class="confirm panel">
+      <span class="pill">REZERWACJA POTWIERDZONA</span>
+      <h1>Dziękujemy, ${r.first_name}!</h1>
+      <p>Rezerwacja została zapisana w bazie danych.</p>
 
-        <h1>Potwierdzenie rezerwacji</h1>
-
-        <p>
-          Zachowaj kod rezerwacji. Będzie potrzebny do sprawdzenia statusu.
-        </p>
-
-        <div class="info-grid">
-          <div class="info">
-            <small>Kod rezerwacji</small>
-            <b>${reservation.reservation_code || reservation.code}</b>
-          </div>
-
-          <div class="info">
-            <small>Wydarzenie</small>
-            <b>${currentEvent.title}</b>
-          </div>
-
-          <div class="info">
-            <small>Status</small>
-            <b>${reservation.status || "confirmed"}</b>
-          </div>
-
-          <div class="info">
-            <small>ID rezerwacji</small>
-            <b>${reservation.id}</b>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="primary" onclick="location.hash='home'">
-            Wróć do wydarzeń
-          </button>
-
-          <button class="secondary" onclick="location.hash='lookup'">
-            Sprawdź rezerwację
-          </button>
-        </div>
+      <div class="info-grid">
+        <div class="info"><small>Numer rezerwacji</small><b>${r.reservation_code}</b></div>
+        <div class="info"><small>Wydarzenie</small><b>${r.event_title}</b></div>
+        <div class="info"><small>Data</small><b>${datePL(r.event_date)}, ${r.event_time}</b></div>
+        <div class="info"><small>Lokalizacja</small><b>${r.location}</b></div>
+        <div class="info"><small>Miejsce</small><b>Sektor ${r.sector}, rząd ${r.row_label}, miejsce ${r.seat_number}</b></div>
+        <div class="info"><small>Status</small><b>${r.status}</b></div>
       </div>
+
+      <br>
+
+      <button class="primary" onclick="location.hash='home'">Wróć do wydarzeń</button>
     </section>
   `;
 }
+
 function renderLookup() {
   app.innerHTML = `
     <section class="container">
-      <div class="panel">
+      <div class="panel" style="max-width:680px;margin:auto">
         <h1>Sprawdź rezerwację</h1>
-        <p>Wpisz kod rezerwacji, aby zobaczyć jej status.</p>
+        <p class="meta">Wpisz numer rezerwacji, np. R-ABC123.</p>
 
-        <div class="form-group">
-          <label>Kod rezerwacji</label>
-          <input id="lookupCode" placeholder="np. ABC123">
+        <div class="searchbar" style="box-shadow:none;border:1px solid var(--line);grid-template-columns:1fr 150px">
+          <input id="lookupCode" placeholder="Numer rezerwacji">
+          <button class="primary" onclick="lookupReservation()">Sprawdź</button>
         </div>
-
-        <button class="primary" onclick="lookupReservation()">
-          Sprawdź
-        </button>
 
         <div id="lookupResult"></div>
       </div>
     </section>
   `;
 }
-async function lookupReservation() {
-  const code = document.querySelector("#lookupCode").value.trim();
-  const result = document.querySelector("#lookupResult");
 
-  if (!code) {
-    result.innerHTML = `<p class="bad">Podaj kod rezerwacji.</p>`;
-    return;
-  }
+async function lookupReservation() {
+  const code = document.querySelector("#lookupCode").value.trim().toUpperCase();
 
   try {
-    const reservation = await api(`/api/reservation/${code}`);
+    const r = await api(`/api/reservation/${code}`);
 
-    result.innerHTML = `
-      <div class="confirm lookup-card">
-        <h2>Rezerwacja znaleziona</h2>
-
-        <div class="info-grid">
-          <div class="info">
-            <small>Kod</small>
-            <b>${reservation.reservation_code || reservation.code}</b>
-          </div>
-
-          <div class="info">
-            <small>Status</small>
-            <b>${reservation.status}</b>
-          </div>
-
-          <div class="info">
-            <small>Imię</small>
-            <b>${reservation.first_name || "-"}</b>
-          </div>
-
-          <div class="info">
-            <small>Nazwisko</small>
-            <b>${reservation.last_name || "-"}</b>
-          </div>
-        </div>
+    document.querySelector("#lookupResult").innerHTML = `
+      <div class="notice">
+        <b>${r.event_title}</b><br>
+        ${datePL(r.event_date)}, ${r.event_time}<br>
+        Sektor ${r.sector}, rząd ${r.row_label}, miejsce ${r.seat_number}<br>
+        Status: ${r.status}
       </div>
     `;
   } catch (err) {
-    result.innerHTML = `
-      <div class="notice error">
-        Nie znaleziono rezerwacji o podanym kodzie.
-      </div>
-    `;
+    document.querySelector("#lookupResult").innerHTML = `<div class="notice">${err.message}</div>`;
   }
 }
+
 /* =========================
    ADMIN
 ========================= */
-
 function renderAdminLogin() {
   app.innerHTML = `
     <section class="container">
@@ -593,8 +503,10 @@ async function adminEvents() {
             <td>${e.status}</td>
             <td>${e.seats_available}/${e.seats_total}</td>
             <td class="actions">
-              <button class="secondary" disabled>Edytuj</button>
-              <button class="secondary" disabled>Miejsca</button>
+              <button class="secondary" onclick="adminEditEvent(${e.id})">Edytuj</button>
+              <button class="secondary" onclick="adminManageSeats(${e.id})">Miejsca</button>
+              <button class="danger" onclick="adminDeactivateEvent(${e.id})">Dezaktywuj</button>
+              <button class="danger" onclick="adminDeleteEvent(${e.id})">Usuń</button>
             </td>
           </tr>
         `).join("")}
@@ -663,23 +575,22 @@ function eventFormHtml(e = {}) {
           </select>
         </div>
 
-        <div class="form-group">
-          <label>Liczba rzędów</label>
-          <input name="rows_count" type="number" min="1" value="6">
-        </div>
+        ${e.id ? "" : `
+          <div class="form-group">
+            <label>Liczba rzędów</label>
+            <input name="rows_count" type="number" min="1" value="6">
+          </div>
 
-        <div class="form-group">
-          <label>Miejsc w rzędzie</label>
-          <input name="seats_per_row" type="number" min="1" value="10">
-        </div>
+          <div class="form-group">
+            <label>Miejsc w rzędzie</label>
+            <input name="seats_per_row" type="number" min="1" value="10">
+          </div>
+        `}
       </div>
 
       <div class="form-group">
         <label>Link do zdjęcia</label>
-        <input 
-          name="image_url" 
-          value="${e.image_url || "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=1600&q=80"}"
-        >
+        <input name="image_url" value="${e.image_url || "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=1600&q=80"}">
       </div>
 
       <div class="form-group">
@@ -687,9 +598,7 @@ function eventFormHtml(e = {}) {
         <textarea name="description">${e.description || ""}</textarea>
       </div>
 
-      <button class="primary">
-        Utwórz wydarzenie
-      </button>
+      <button class="primary">${e.id ? "Zapisz zmiany" : "Utwórz wydarzenie"}</button>
     </form>
   `;
 }
@@ -720,99 +629,53 @@ function adminAdd() {
   };
 }
 
-async function adminReservations() {
-  const reservations = await api("/api/admin/reservations");
+async function adminEditEvent(id) {
+  const data = await api(`/api/event/${id}`);
+  const e = data.event;
 
   document.querySelector("#adminMain").innerHTML = `
-    <h1>Rezerwacje</h1>
-
-    <div class="panel">
-      <input 
-        id="resSearch" 
-        placeholder="Szukaj po nazwisku, e-mailu lub wydarzeniu..."
-        class="admin-search"
-        oninput="filterReservations()"
-      >
-
-      <div id="resTable">
-        ${reservationsTable(reservations)}
-      </div>
-    </div>
+    <h1>Edytuj wydarzenie</h1>
+    ${eventFormHtml(e)}
   `;
 
-  window.__reservations = reservations;
+  document.querySelector("#eventForm").onsubmit = async ev => {
+    ev.preventDefault();
+
+    const fd = Object.fromEntries(new FormData(ev.target).entries());
+
+    try {
+      await api(`/api/admin/event/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(fd)
+      });
+
+      alert("Zapisano zmiany.");
+      adminView = "events";
+      renderAdmin();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 }
 
-function filterReservations() {
-  const q = document.querySelector("#resSearch").value.toLowerCase();
+async function adminDeactivateEvent(id) {
+  if (!confirm("Dezaktywować/anulować wydarzenie?")) return;
 
-  const rows = (window.__reservations || []).filter(r => {
-    return `${r.first_name} ${r.last_name} ${r.email} ${r.event_title}`
-      .toLowerCase()
-      .includes(q);
+  await api(`/api/admin/event/${id}`, {
+    method: "DELETE"
   });
 
-  document.querySelector("#resTable").innerHTML = reservationsTable(rows);
+  adminEvents();
 }
 
-function reservationsTable(rows) {
-  if (!rows.length) {
-    return `<p>Brak rezerwacji.</p>`;
-  }
+async function adminDeleteEvent(id) {
+  if (!confirm("Usunąć wydarzenie całkowicie?")) return;
 
-  return `
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Numer</th>
-          <th>Osoba</th>
-          <th>E-mail</th>
-          <th>Wydarzenie</th>
-          <th>Miejsce</th>
-          <th>Status</th>
-          <th>Akcja</th>
-        </tr>
-      </thead>
+  await api(`/api/admin/event/${id}?mode=delete`, {
+    method: "DELETE"
+  });
 
-      <tbody>
-        ${rows.map(r => `
-          <tr>
-            <td>${r.reservation_code}</td>
-            <td>${r.first_name} ${r.last_name}</td>
-            <td>${r.email}</td>
-            <td>${r.event_title}</td>
-            <td>${r.sector}-${r.row_label}-${r.seat_number}</td>
-            <td>${r.status}</td>
-            <td>
-              ${r.status === "active" ? `
-                <button class="danger" onclick="cancelReservation('${r.reservation_code}')">
-                  Anuluj
-                </button>
-              ` : "—"}
-            </td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-}
-
-async function cancelReservation(code) {
-  if (!confirm("Anulować rezerwację?")) return;
-
-  try {
-    await api("/api/admin/reservations", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "cancel",
-        reservation_code: code
-      })
-    });
-
-    adminReservations();
-  } catch (err) {
-    alert(err.message);
-  }
+  adminEvents();
 }
 
 async function adminManageSeats(id) {
@@ -859,10 +722,92 @@ async function adminEditSeat(eventId, seatId) {
     alert(err.message);
   }
 }
+
+async function adminReservations() {
+  const reservations = await api("/api/admin/reservations");
+
+  document.querySelector("#adminMain").innerHTML = `
+    <h1>Rezerwacje</h1>
+
+    <div class="panel">
+      <input 
+        id="resSearch" 
+        placeholder="Szukaj po nazwisku, e-mailu lub wydarzeniu..."
+        style="width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px"
+        oninput="filterReservations()">
+
+      <div id="resTable">${reservationsTable(reservations)}</div>
+    </div>
+  `;
+
+  window.__reservations = reservations;
+}
+
+function filterReservations() {
+  const q = document.querySelector("#resSearch").value.toLowerCase();
+
+  const rows = (window.__reservations || []).filter(r => {
+    return `${r.first_name} ${r.last_name} ${r.email} ${r.event_title}`.toLowerCase().includes(q);
+  });
+
+  document.querySelector("#resTable").innerHTML = reservationsTable(rows);
+}
+
+function reservationsTable(rows) {
+  if (!rows.length) return `<p>Brak rezerwacji.</p>`;
+
+  return `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Numer</th>
+          <th>Osoba</th>
+          <th>E-mail</th>
+          <th>Wydarzenie</th>
+          <th>Miejsce</th>
+          <th>Status</th>
+          <th>Akcja</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td>${r.reservation_code}</td>
+            <td>${r.first_name} ${r.last_name}</td>
+            <td>${r.email}</td>
+            <td>${r.event_title}</td>
+            <td>${r.sector}-${r.row_label}-${r.seat_number}</td>
+            <td>${r.status}</td>
+            <td>
+              ${r.status === "active" ? `
+                <button class="danger" onclick="cancelReservation('${r.reservation_code}')">Anuluj</button>
+              ` : "—"}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+async function cancelReservation(code) {
+  if (!confirm("Anulować rezerwację?")) return;
+
+  await api("/api/admin/reservations", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "cancel",
+      reservation_code: code
+    })
+  });
+
+  adminReservations();
+}
+
 /* =========================
    ROUTER
 ========================= */
-
 async function router() {
   const hash = location.hash.replace("#", "") || "home";
 
