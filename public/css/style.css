@@ -137,7 +137,7 @@ nav{display:none}
 .empty-state h3{color:var(--text);margin-top:0;}
 html{scroll-behavior:smooth;}
 body{overflow-x:hidden;}
-#app{animation:pageFadeIn .38s ease both;}
+#app{flex: 1; animation:pageFadeIn .38s ease both;}
 @keyframes pageFadeIn{from{opacity:0;transform:translateY(14px);filter:blur(3px);}
 to{opacity:1;transform:translateY(0);filter:blur(0);}
 }
@@ -229,7 +229,7 @@ to{opacity:1;transform:translateY(0);}
 }
 .glass-panel{background:rgba(255,255,255,.76) !important;backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55) !important;box-shadow:0 24px 80px rgba(15,23,42,.14) !important;}
 .dark-glass{background:rgba(7,11,20,.72) !important;backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.14) !important;color:#fff;}
-.progress-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 22px;}
+.progress-steps{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:16px 0 22px;}
 .step{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;color:var(--muted);font-size:13px;font-weight:800;position:relative;overflow:hidden;}
 .step.active{background:linear-gradient(135deg,rgba(109,40,217,.12),rgba(37,99,235,.10));border-color:rgba(109,40,217,.35);color:var(--primary);}
 .step.done{background:#ecfdf5;border-color:#bbf7d0;color:#166534;}

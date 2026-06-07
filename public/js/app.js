@@ -4,7 +4,6 @@ let selectedSeatId = null;
 let currentEvent = null;
 let currentSeats = [];
 let adminToken = localStorage.getItem("adminToken") || "";
-let adminView = "dashboard";
 
 function money(v) {
   return Number(v) === 0 ? "Darmowe" : Number(v).toFixed(2).replace(".", ",") + " zł";
@@ -202,7 +201,7 @@ function renderAdminLogin() {
       adminToken = res.token;
       localStorage.setItem("adminToken", adminToken);
 
-      renderAdmin();
+      location.hash = "admin/dashboard";
     } catch (err) {
       alert(err.message);
     }
@@ -212,14 +211,19 @@ function renderAdminLogin() {
 function renderAdmin() {
   if (!adminToken) return renderAdminLogin();
 
+  const hash = location.hash.replace("#", "") || "admin/dashboard";
+  const parts = hash.split("/");
+  const view = parts[1] || "dashboard";
+  const id = parts[2];
+
   app.innerHTML = `
     <section class="admin-layout">
       <aside class="sidebar">
         <h3>Panel admina</h3>
-        <button onclick="adminView='dashboard';renderAdmin()">Dashboard</button>
-        <button onclick="adminView='events';renderAdmin()">Wydarzenia</button>
-        <button onclick="adminView='add';renderAdmin()">Dodaj wydarzenie</button>
-        <button onclick="adminView='reservations';renderAdmin()">Rezerwacje</button>
+        <button onclick="location.hash='admin/dashboard'">Dashboard</button>
+        <button onclick="location.hash='admin/events'">Wydarzenia</button>
+        <button onclick="location.hash='admin/add'">Dodaj wydarzenie</button>
+        <button onclick="location.hash='admin/reservations'">Rezerwacje</button>
         <button onclick="localStorage.removeItem('adminToken');adminToken='';location.hash='home'">Wyloguj</button>
       </aside>
 
@@ -227,10 +231,14 @@ function renderAdmin() {
     </section>
   `;
 
-  if (adminView === "dashboard") adminDashboard();
-  if (adminView === "events") adminEvents();
-  if (adminView === "add") adminAdd();
-  if (adminView === "reservations") adminReservations();
+  if (view === "dashboard") return adminDashboard();
+  if (view === "events") return adminEvents();
+  if (view === "add") return adminAdd();
+  if (view === "reservations") return adminReservations();
+  if (view === "seats" && id) return adminManageSeats(id);
+  if (view === "edit" && id) return adminEditEvent(id);
+
+  location.hash = "admin/dashboard";
 }
 
 function eventFormHtml(e = {}) {
@@ -351,6 +359,7 @@ function filterReservations() {
   document.querySelector("#resTable").innerHTML = reservationsTable(rows);
 }
 
+
 async function cancelReservation(code) {
   if (!confirm("Anulować rezerwację?")) return;
 
@@ -376,7 +385,8 @@ async function router() {
     if (hash === "lookup") return renderLookup();
     if (hash.startsWith("event/")) return renderEvent(hash.split("/")[1]);
     if (hash.startsWith("reserve/")) return renderReserve(hash.split("/")[1]);
-    if (hash === "admin") return renderAdmin();
+    if (hash === "admin") { location.hash = "admin/dashboard"; return; }
+    if (hash.startsWith("admin/")) return renderAdmin();
 
     return renderHome();
   } catch (err) {
@@ -392,7 +402,7 @@ async function router() {
   }
 }
 
-window.addEventListener("hashchange", router);
+window.addEventListener("hashchange", () => router());
 router();
 
 async function adminManageSeats(id) {
@@ -400,7 +410,7 @@ async function adminManageSeats(id) {
     const data = await api(`/api/admin/seats/${id}`);
 
     document.querySelector("#adminMain").innerHTML = `
-      <button class="secondary" onclick="adminEvents()">← Wróć</button>
+      <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
       <h1>Miejsca: ${data.event.title}</h1>
       <p class="meta">Kliknij miejsce, aby zmienić status, typ lub cenę.</p>
 
@@ -447,8 +457,6 @@ async function adminEditSeat(eventId, seatId, oldStatus, oldType, oldPrice) {
 }
 
 let multiSeatIds = [];
-
-
 function drawSeats() {
   document.querySelector("#seatsGrid").innerHTML = currentSeats.map(s => {
     const selected = multiSeatIds.includes(Number(s.id)) ? "selected" : "";
@@ -788,7 +796,7 @@ async function adminEvents() {
       document.querySelector("#adminMain").innerHTML = `
         <div class="section-head">
           <h1>Wydarzenia</h1>
-          <button class="primary" onclick="adminView='add';renderAdmin()">+ Dodaj wydarzenie</button>
+          <button class="primary" onclick="location.hash='admin/add'">+ Dodaj wydarzenie</button>
         </div>
 
         <div class="empty-state">
@@ -802,12 +810,12 @@ async function adminEvents() {
     document.querySelector("#adminMain").innerHTML = `
       <div class="section-head">
         <h1>Wydarzenia</h1>
-        <button class="primary" onclick="adminView='add';renderAdmin()">+ Dodaj wydarzenie</button>
+        <button class="primary" onclick="location.hash='admin/add'">+ Dodaj wydarzenie</button>
       </div>
 
       <div class="admin-toolbar">
         <button class="secondary" onclick="adminEvents()">Odśwież listę</button>
-        <button class="secondary" onclick="adminView='reservations';renderAdmin()">Zobacz rezerwacje</button>
+        <button class="secondary" onclick="location.hash='admin/reservations'">Zobacz rezerwacje</button>
       </div>
 
       <table class="table">
@@ -834,8 +842,8 @@ async function adminEvents() {
               <td>${statusPill(e.status)}</td>
               <td>${e.seats_available}/${e.seats_total}</td>
               <td class="actions">
-                <button class="secondary" onclick="adminEditEvent(${e.id})">Edytuj</button>
-                <button class="secondary" onclick="adminManageSeats(${e.id})">Miejsca</button>
+                <button class="secondary" onclick="location.hash='admin/edit/${e.id}'">Edytuj</button>
+                <button class="secondary" onclick="location.hash='admin/seats/${e.id}'">Miejsca</button>
                 <button class="danger" onclick="adminDeactivateEvent(${e.id})">Dezaktywuj</button>
                 <button class="danger" onclick="adminDeleteEvent(${e.id})">Usuń</button>
               </td>
@@ -953,7 +961,7 @@ function adminEventForm(e = {}) {
 
 async function adminAdd() {
   document.querySelector("#adminMain").innerHTML = `
-    <button class="secondary" onclick="adminEvents()">← Wróć</button>
+    <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
     <h1>Dodaj wydarzenie</h1>
     ${adminEventForm()}
   `;
@@ -993,7 +1001,7 @@ async function adminAdd() {
       });
 
       showToast("Dodano wydarzenie.", "success");
-      await adminEvents();
+      location.hash = "admin/events";
     } catch (err) {
       console.error(err);
       showToast("Błąd dodawania wydarzenia: " + err.message, "error");
@@ -1007,7 +1015,7 @@ async function adminEditEvent(id) {
     const e = data.event;
 
     document.querySelector("#adminMain").innerHTML = `
-      <button class="secondary" onclick="adminEvents()">← Wróć</button>
+      <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
       <h1>Edytuj wydarzenie</h1>
       ${adminEventForm(e)}
     `;
@@ -1045,7 +1053,7 @@ async function adminEditEvent(id) {
         });
 
         showToast(result.message || "Zapisano zmiany.", "success");
-        await adminEvents();
+        location.hash = "admin/events";
       } catch (err) {
         console.error(err);
         showToast("Błąd zapisu wydarzenia: " + err.message, "error");
@@ -1151,7 +1159,6 @@ async function renderHome() {
     <section class="container">
       <div class="section-head">
         <h2>Nadchodzące wydarzenia</h2>
-        <button class="secondary" onclick="setHash('admin')">Panel administratora</button>
       </div>
 
       <div id="events" class="grid"></div>
@@ -1284,21 +1291,21 @@ renderConfirm = function(r) {
 addRippleEffect();
 enhanceAfterRender();
 
-function premiumSteps(activeStep = 2) {
+function premiumSteps(active){
   const steps = [
-    ["1", "Wydarzenie"],
-    ["2", "Miejsca"],
-    ["3", "Dane"],
-    ["4", "Potwierdzenie"]
+    ['1','Wydarzenie'],
+    ['2','Miejsca i dane'],
+    ['3','Potwierdzenie']
   ];
 
   return `
     <div class="progress-steps">
-      ${steps.map((s, index) => {
-        const stepNo = index + 1;
-        const cls = stepNo < activeStep ? "done" : stepNo === activeStep ? "active" : "";
-        return `<div class="step ${cls}"><strong>${s[0]}</strong>${s[1]}</div>`;
-      }).join("")}
+      ${steps.map(([n,label],i)=>{
+        const num = i + 1;
+        return `<div class="step ${num < active ? 'done' : num === active ? 'active' : ''}">
+          <strong>${n}</strong>${label}
+        </div>`;
+      }).join('')}
     </div>
   `;
 }
@@ -1424,8 +1431,6 @@ async function renderReserve(id) {
       <aside class="panel glass-panel floating-summary">
         <h2>Twoja rezerwacja</h2>
 
-        ${premiumSteps(3)}
-
         <div id="selectedSummary" class="notice">
           Nie wybrano miejsc.
         </div>
@@ -1474,7 +1479,7 @@ function renderConfirm(r) {
 
   app.innerHTML = `
     <section class="ticket-wrap">
-      ${premiumSteps(4)}
+      ${premiumSteps(3)}
 
       <div class="ticket">
         <div class="ticket-main">
