@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS reservation_seats;
 DROP TABLE IF EXISTS reservations;
 DROP TABLE IF EXISTS seats;
 DROP TABLE IF EXISTS events;
@@ -40,6 +41,8 @@ CREATE TABLE seats (
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 
+-- Jedna rezerwacja = jeden unikalny kod.
+-- Jeśli klient wybiera kilka miejsc, szczegóły miejsc są w tabeli reservation_seats.
 CREATE TABLE reservations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   reservation_code TEXT NOT NULL UNIQUE,
@@ -54,6 +57,25 @@ CREATE TABLE reservations (
   FOREIGN KEY (event_id) REFERENCES events(id),
   FOREIGN KEY (seat_id) REFERENCES seats(id)
 );
+
+CREATE TABLE reservation_seats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reservation_id INTEGER NOT NULL,
+  seat_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+  FOREIGN KEY (seat_id) REFERENCES seats(id),
+  UNIQUE (reservation_id, seat_id)
+);
+
+CREATE INDEX idx_reservations_code
+ON reservations(reservation_code);
+
+CREATE INDEX idx_reservation_seats_reservation_id
+ON reservation_seats(reservation_id);
+
+CREATE INDEX idx_reservation_seats_seat_id
+ON reservation_seats(seat_id);
 
 INSERT INTO admins (email, password, role)
 VALUES ('admin@demo.pl', 'admin123', 'admin');
@@ -77,9 +99,7 @@ SELECT
   n,
   CASE WHEN r = 1 AND n <= 4 THEN 'vip' ELSE 'standard' END,
   CASE WHEN r = 1 AND n <= 4 THEN 199 ELSE 129 END,
-  CASE WHEN r = 8 AND n IN (2,3) THEN 'blocked'
-       WHEN r = 3 AND n IN (5,6) THEN 'reserved'
-       ELSE 'available' END
+  CASE WHEN r = 8 AND n IN (2,3) THEN 'blocked' ELSE 'available' END
 FROM rows CROSS JOIN nums;
 
 -- Miejsca dla wydarzenia 2: 5 rzędów x 8 miejsc
