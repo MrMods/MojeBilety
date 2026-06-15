@@ -1,6 +1,6 @@
 :root{--bg:#f4f6fb;--card:#fff;--text:#121827;--muted:#667085;--line:#e6e8ef;--primary:#6d28d9;--primary2:#2563eb;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--dark:#070b14;}
 *{box-sizing:border-box}
-body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text); min-height:100vh; display:flex; flex-direction:column;}
 button,input,select,textarea{font-family:inherit}
 button{border:0;cursor:pointer}
 .topbar{height:66px;display:flex;justify-content:space-between;align-items:center;padding:0 34px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
@@ -76,7 +76,7 @@ nav button:hover,.secondary:hover{background:#e5e7eb}
 .table th{background:#f8fafc}
 .notice{background:#eef2ff;border:1px solid #c7d2fe;color:#312e81;padding:13px;border-radius:12px;margin:12px 0}
 .confirm{max-width:780px;margin:44px auto;padding:24px}
-.footer{display:flex;justify-content:space-between;gap:20px;padding:28px 34px;background:#fff;border-top:1px solid var(--line);color:var(--muted)}
+.footer{margin-top:auto; display:flex;justify-content:space-between;gap:20px;padding:28px 34px;background:#fff;border-top:1px solid var(--line);color:var(--muted)}
 @media(max-width:950px){.grid,.two-col,.seat-layout,.admin-layout,.stats{grid-template-columns:1fr}
 .searchbar{grid-template-columns:1fr}
 .topbar{padding:0 16px}
@@ -212,7 +212,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(109,40,217,.55) !impor
 @keyframes fadeIn{from{opacity:0;}
 to{opacity:1;}
 }
-.reveal{opacity:0;transform:translateY(18px);}
+.reveal{opacity:1;transform:none;}
 .reveal.revealed{animation:revealUp .5s ease both;}
 @keyframes revealUp{from{opacity:0;transform:translateY(18px);}
 to{opacity:1;transform:translateY(0);}
@@ -267,3 +267,25 @@ to{opacity:1;transform:translateY(0) scale(1);}
 .ticket-main:after{display:none;}
 .ticket-meta,.progress-steps,.premium-stat-grid{grid-template-columns:1fr;}
 }
+
+
+.preview-btn{background:#ecfeff !important;color:#155e75 !important;}
+.admin-main-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:18px;border-radius:16px;font-weight:800;}
+.admin-mini-note{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:12px;border-radius:12px;margin-bottom:16px;font-weight:700;}
+
+.sport-stadium-layout{display:grid !important;grid-template-areas:"top top top" "left field right" "bottom bottom bottom";grid-template-columns:minmax(180px,1fr) minmax(320px,420px) minmax(180px,1fr);gap:22px;align-items:center;justify-content:center;margin:22px 0;}
+.sport-stand{display:flex !important;flex-wrap:wrap;gap:8px;justify-content:center;align-content:center;}
+.sport-stand.top{grid-area:top;max-width:760px;margin:0 auto;}
+.sport-stand.bottom{grid-area:bottom;max-width:760px;margin:0 auto;}
+.sport-stand.left{grid-area:left;max-width:220px;margin-left:auto;}
+.sport-stand.right{grid-area:right;max-width:220px;margin-right:auto;}
+.sport-field-premium{grid-area:field;min-height:300px;border:4px solid #14532d;border-radius:34px;background:linear-gradient(90deg,transparent 49%,rgba(255,255,255,.55) 50%,transparent 51%),radial-gradient(circle at 50% 50%,transparent 18%,rgba(255,255,255,.55) 19%,transparent 20%),repeating-linear-gradient(90deg,#22c55e 0 42px,#16a34a 42px 84px);color:white;display:grid;place-items:center;text-align:center;font-weight:950;letter-spacing:.04em;box-shadow:inset 0 0 50px rgba(0,0,0,.15),0 20px 55px rgba(20,83,45,.18);text-shadow:0 2px 8px rgba(0,0,0,.35);}
+.sport-field-premium small{display:block;font-size:13px;font-weight:700;margin-top:6px;}
+
+.table-scroll{width:100%;overflow-x:auto;overflow-y:visible;border-radius:16px;border:1px solid var(--line);background:#fff;}
+.table-scroll .table{border:0;min-width:980px;}
+.table thead th{position:sticky;top:0;z-index:5;background:#f8fafc;}
+.scroll-top-btn{position:fixed;right:24px;bottom:24px;z-index:80;background:linear-gradient(135deg,#6d28d9,#2563eb);color:white;border:0;border-radius:999px;padding:12px 16px;font-weight:900;box-shadow:0 16px 40px rgba(109,40,217,.28);display:none;}
+.scroll-top-btn.visible{display:inline-flex;}
+
+@media(max-width:950px){.sport-stadium-layout{grid-template-areas:"top" "field" "left" "right" "bottom";grid-template-columns:1fr;}.sport-stand.left,.sport-stand.right,.sport-stand.top,.sport-stand.bottom{max-width:100%;margin:0 auto;}.sport-field-premium{min-height:190px;}.table-scroll .table{min-width:850px;}}

@@ -1,4 +1,4 @@
-﻿const app = document.querySelector("#app");
+const app = document.querySelector("#app");
 
 let selectedSeatId = null;
 let currentEvent = null;
@@ -6,59 +6,67 @@ let currentSeats = [];
 let adminToken = localStorage.getItem("adminToken") || "";
 
 function money(v) {
-  return Number(v) === 0 ? "Darmowe" : Number(v).toFixed(2).replace(".", ",") + " zł";
+    return Number(v) === 0 ? "Darmowe" : Number(v).toFixed(2).replace(".", ",") + " zł";
 }
 
 function datePL(v) {
-  return new Date(v + "T00:00:00").toLocaleDateString("pl-PL", {
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
+    return new Date(v + "T00:00:00").toLocaleDateString("pl-PL", {
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+    });
 }
 
 function eventStatus(e) {
-  if (e.seats_available <= 0) return ["Brak miejsc", "bad"];
-  if (e.seats_available < 5) return ["Mało miejsc", "warn"];
-  return ["Dostępne", "ok"];
+    if (e.seats_available <= 0) return ["Brak miejsc", "bad"];
+    if (e.seats_available < 5) return ["Mało miejsc", "warn"];
+    return ["Dostępne", "ok"];
 }
 
 async function api(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(adminToken ? { "Authorization": "Bearer " + adminToken } : {}),
-      ...(options.headers || {})
+    const isMutation = options && options.method && options.method !== "GET";
+
+    if (isMutation && typeof showLoader === "function") showLoader();
+
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: {
+                "Content-Type": "application/json",
+                ...(adminToken ? { "Authorization": "Bearer " + adminToken } : {}),
+                ...(options.headers || {})
+            }
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            throw new Error(data.error || "Wystąpił błąd.");
+        }
+
+        return data;
+    } finally {
+        if (isMutation && typeof hideLoader === "function") hideLoader();
     }
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data.error || "Wystąpił błąd.");
-  }
-
-  return data;
 }
 
 function setHash(name) {
-  location.hash = name;
+    location.hash = name;
 }
 
 /* =========================
    USER
 ========================= */
 async function loadEvents() {
-  const q = document.querySelector("#search")?.value || "";
-  const category = document.querySelector("#category")?.value || "all";
+    const q = document.querySelector("#search")?.value || "";
+    const category = document.querySelector("#category")?.value || "all";
 
-  const events = await api(`/api/events?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`);
+    const events = await api(`/api/events?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`);
 
-  document.querySelector("#events").innerHTML = events.map(e => {
-    const [label, cls] = eventStatus(e);
+    document.querySelector("#events").innerHTML = events.map(e => {
+        const [label, cls] = eventStatus(e);
 
-    return `
+        return `
       <article class="card">
         <div class="card-img" style="background-image:url('${e.image_url}')">
           <span class="badge">${e.category}</span>
@@ -81,18 +89,23 @@ async function loadEvents() {
         </div>
       </article>
     `;
-  }).join("") || `<p>Brak wydarzeń.</p>`;
+    }).join("") || `<p>Brak wydarzeń.</p>`;
 }
 
 async function renderEvent(id) {
-  const data = await api(`/api/event/${id}`);
+    const data = await api(`/api/event/${id}`);
 
-  currentEvent = data.event;
-  currentSeats = data.seats;
+    currentEvent = data.event;
+    currentSeats = data.seats;
 
-  const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
+    const adminPreview = isAdminPreviewMode();
+    const canReserve = currentEvent.status === "active";
+    const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
+    const reserveButton = canReserve || adminPreview
+        ? `<button class="primary" style="width:100%" onclick="location.hash='reserve/${currentEvent.id}'">${canReserve ? "Wybierz miejsce" : "Podgląd wyboru miejsc"}</button>`
+        : `<button class="primary" style="width:100%" disabled>Rezerwacja niedostępna</button>`;
 
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="details-hero ${currentEvent.template}" style="background-image:url('${currentEvent.image_url}')">
       <div class="details-inner">
         <span class="pill">${currentEvent.category}</span>
@@ -103,6 +116,13 @@ async function renderEvent(id) {
 
     <section class="two-col">
       <article class="panel ${panelClass}">
+        ${adminPreview && !canReserve ? `
+          <div class="notice">
+            <b>Podgląd admina</b><br>
+            To wydarzenie ma status <b>${currentEvent.status}</b>. Użytkownicy go nie widzą i nie mogą robić rezerwacji, ale możesz podejrzeć stronę oraz układ miejsc.
+          </div>
+        ` : ""}
+
         <h2>${currentEvent.template === "concert" ? "Koncertowy opis wydarzenia" : "Opis wydarzenia"}</h2>
         <p>${currentEvent.description}</p>
 
@@ -112,6 +132,7 @@ async function renderEvent(id) {
           <div class="info"><small>Lokalizacja</small><b>${currentEvent.location}</b></div>
           <div class="info"><small>Adres</small><b>${currentEvent.address}</b></div>
           <div class="info"><small>Wolne miejsca</small><b>${currentEvent.seats_available}</b></div>
+          <div class="info"><small>Status</small><b>${currentEvent.status}</b></div>
           <div class="info"><small>Szablon</small><b>${currentEvent.template === "concert" ? "Koncertowy" : "Klasyczny"}</b></div>
         </div>
 
@@ -120,27 +141,27 @@ async function renderEvent(id) {
       </article>
 
       <aside class="panel">
-        <h2>Rezerwacja</h2>
-        <p class="meta">Wybierz konkretne miejsce na interaktywnej mapie sali.</p>
+        <h2>${canReserve ? "Rezerwacja" : "Podgląd"}</h2>
+        <p class="meta">${canReserve ? "Wybierz konkretne miejsce na interaktywnej mapie sali." : "Wydarzenie nie jest aktywne, więc rezerwacja jest wyłączona."}</p>
         <div class="price">
           <span>Cena od</span>
           <span>${money(currentEvent.price)}</span>
         </div>
         <br>
-        <button class="primary" style="width:100%" onclick="location.hash='reserve/${currentEvent.id}'">Wybierz miejsce</button>
+        ${reserveButton}
       </aside>
     </section>
   `;
 }
 
 function seatClass(s) {
-  if (s.status === "available" && s.seat_type === "vip") return "vip";
-  if (s.status === "available" && s.seat_type === "balcony") return "balcony";
-  return s.status;
+    if (s.status === "available" && s.seat_type === "vip") return "vip";
+    if (s.status === "available" && s.seat_type === "balcony") return "balcony";
+    return s.status;
 }
 
 function renderLookup() {
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="container">
       <div class="panel" style="max-width:680px;margin:auto">
         <h1>Sprawdź rezerwację</h1>
@@ -161,7 +182,7 @@ function renderLookup() {
    ADMIN
 ========================= */
 function renderAdminLogin() {
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="container">
       <div class="panel" style="max-width:430px;margin:auto">
         <h1>Logowanie administratora</h1>
@@ -184,39 +205,45 @@ function renderAdminLogin() {
     </section>
   `;
 
-  document.querySelector("#loginForm").onsubmit = async e => {
-    e.preventDefault();
+    document.querySelector("#loginForm").onsubmit = async e => {
+        e.preventDefault();
 
-    const fd = new FormData(e.target);
+        const fd = new FormData(e.target);
 
-    try {
-      const res = await api("/api/admin/login", {
-        method: "POST",
-        body: JSON.stringify({
-          email: fd.get("email"),
-          password: fd.get("password")
-        })
-      });
+        try {
+            const res = await api("/api/admin/login", {
+                method: "POST",
+                body: JSON.stringify({
+                    email: fd.get("email"),
+                    password: fd.get("password")
+                })
+            });
 
-      adminToken = res.token;
-      localStorage.setItem("adminToken", adminToken);
+            adminToken = res.token;
+            localStorage.setItem("adminToken", adminToken);
 
-      location.hash = "admin/dashboard";
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+            const target = "admin/dashboard";
+
+            if (location.hash.replace("#", "") === target) {
+                await router();
+            } else {
+                location.hash = target;
+            }
+        } catch (err) {
+            alert(err.message);
+        }
+    };
 }
 
 function renderAdmin() {
-  if (!adminToken) return renderAdminLogin();
+    if (!adminToken) return renderAdminLogin();
 
-  const hash = location.hash.replace("#", "") || "admin/dashboard";
-  const parts = hash.split("/");
-  const view = parts[1] || "dashboard";
-  const id = parts[2];
+    const hash = location.hash.replace("#", "") || "admin/dashboard";
+    const parts = hash.split("/");
+    const view = parts[1] || "dashboard";
+    const id = parts[2];
 
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="admin-layout">
       <aside class="sidebar">
         <h3>Panel admina</h3>
@@ -231,18 +258,18 @@ function renderAdmin() {
     </section>
   `;
 
-  if (view === "dashboard") return adminDashboard();
-  if (view === "events") return adminEvents();
-  if (view === "add") return adminAdd();
-  if (view === "reservations") return adminReservations();
-  if (view === "seats" && id) return adminManageSeats(id);
-  if (view === "edit" && id) return adminEditEvent(id);
+    if (view === "dashboard") return adminDashboard();
+    if (view === "events") return adminEvents();
+    if (view === "add") return adminAdd();
+    if (view === "reservations") return adminReservations();
+    if (view === "seats" && id) return adminManageSeats(id);
+    if (view === "edit" && id) return adminEditEvent(id);
 
-  location.hash = "admin/dashboard";
+    location.hash = "admin/dashboard";
 }
 
 function eventFormHtml(e = {}) {
-  return `
+    return `
     <form id="eventForm" class="panel">
       <div class="info-grid">
         <div class="form-group">
@@ -330,9 +357,9 @@ function eventFormHtml(e = {}) {
 }
 
 async function adminReservations() {
-  const reservations = await api("/api/admin/reservations");
+    const reservations = await api("/api/admin/reservations");
 
-  document.querySelector("#adminMain").innerHTML = `
+    document.querySelector("#adminMain").innerHTML = `
     <h1>Rezerwacje</h1>
 
     <div class="panel">
@@ -346,51 +373,62 @@ async function adminReservations() {
     </div>
   `;
 
-  window.__reservations = reservations;
+    window.__reservations = reservations;
 }
 
 function filterReservations() {
-  const q = document.querySelector("#resSearch").value.toLowerCase();
+    const q = document.querySelector("#resSearch").value.toLowerCase();
 
-  const rows = (window.__reservations || []).filter(r => {
-    return `${r.first_name} ${r.last_name} ${r.email} ${r.event_title}`.toLowerCase().includes(q);
-  });
+    const rows = (window.__reservations || []).filter(r => {
+        return `${r.first_name} ${r.last_name} ${r.email} ${r.event_title}`.toLowerCase().includes(q);
+    });
 
-  document.querySelector("#resTable").innerHTML = reservationsTable(rows);
+    document.querySelector("#resTable").innerHTML = reservationsTable(rows);
 }
 
 
 async function cancelReservation(code) {
-  if (!confirm("Anulować rezerwację?")) return;
+    if (!confirm("Anulować rezerwację?")) return;
 
-  await api("/api/admin/reservations", {
-    method: "POST",
-    body: JSON.stringify({
-      action: "cancel",
-      reservation_code: code
-    })
-  });
+    await api("/api/admin/reservations", {
+        method: "POST",
+        body: JSON.stringify({
+            action: "cancel",
+            reservation_code: code
+        })
+    });
 
-  adminReservations();
+    adminReservations();
 }
 
 /* =========================
    ROUTER
 ========================= */
 async function router() {
-  const hash = location.hash.replace("#", "") || "home";
+    const hash = location.hash.replace("#", "") || "home";
+    const appEl = document.querySelector("#app");
 
-  try {
-    if (hash === "home") return renderHome();
-    if (hash === "lookup") return renderLookup();
-    if (hash.startsWith("event/")) return renderEvent(hash.split("/")[1]);
-    if (hash.startsWith("reserve/")) return renderReserve(hash.split("/")[1]);
-    if (hash === "admin") { location.hash = "admin/dashboard"; return; }
-    if (hash.startsWith("admin/")) return renderAdmin();
+    try {
+        if (appEl) {
+            appEl.classList.add("page-transition-out");
+            await new Promise(resolve => setTimeout(resolve, 120));
+            appEl.classList.remove("page-transition-out");
+        }
 
-    return renderHome();
-  } catch (err) {
-    app.innerHTML = `
+        if (hash === "home") await renderHome();
+        else if (hash === "lookup") renderLookup();
+        else if (hash.startsWith("event/")) await renderEvent(hash.split("/")[1]);
+        else if (hash.startsWith("reserve/")) await renderReserve(hash.split("/")[1]);
+        else if (hash === "admin") {
+            location.hash = "admin/dashboard";
+            return;
+        }
+        else if (hash.startsWith("admin/")) await renderAdmin();
+        else await renderHome();
+
+        enhanceAfterRender();
+    } catch (err) {
+        app.innerHTML = `
       <section class="container">
         <div class="panel">
           <h1>Błąd</h1>
@@ -399,17 +437,18 @@ async function router() {
         </div>
       </section>
     `;
-  }
+    }
 }
 
 window.addEventListener("hashchange", () => router());
+window.addEventListener("popstate", () => router());
 router();
 
 async function adminManageSeats(id) {
-  try {
-    const data = await api(`/api/admin/seats/${id}`);
+    try {
+        const data = await api(`/api/admin/seats/${id}`);
 
-    document.querySelector("#adminMain").innerHTML = `
+        document.querySelector("#adminMain").innerHTML = `
       <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
       <h1>Miejsca: ${data.event.title}</h1>
       <p class="meta">Kliknij miejsce, aby zmienić status, typ lub cenę.</p>
@@ -422,102 +461,160 @@ async function adminManageSeats(id) {
         `).join("")}
       </div>
     `;
-  } catch (err) {
-    alert("Błąd pobierania miejsc: " + err.message);
-  }
+    } catch (err) {
+        alert("Błąd pobierania miejsc: " + err.message);
+    }
 }
 
 async function adminEditSeat(eventId, seatId, oldStatus, oldType, oldPrice) {
-  const status = prompt("Status miejsca: available / reserved / blocked", oldStatus || "available");
-  if (!status) return;
+    const status = prompt("Status miejsca: available / reserved / blocked", oldStatus || "available");
+    if (!status) return;
 
-  const type = prompt("Typ miejsca: standard / vip / balcony", oldType || "standard");
-  if (!type) return;
+    const type = prompt("Typ miejsca: standard / vip / balcony", oldType || "standard");
+    if (!type) return;
 
-  const price = prompt("Cena miejsca", oldPrice || "0");
-  if (price === null) return;
+    const price = prompt("Cena miejsca", oldPrice || "0");
+    if (price === null) return;
 
-  try {
-    const result = await api(`/api/admin/seats/${eventId}`, {
-      method: "POST",
-      body: JSON.stringify({
-        seat_id: seatId,
-        status: status,
-        seat_type: type,
-        price: Number(price || 0)
-      })
-    });
+    try {
+        const result = await api(`/api/admin/seats/${eventId}`, {
+            method: "POST",
+            body: JSON.stringify({
+                seat_id: seatId,
+                status: status,
+                seat_type: type,
+                price: Number(price || 0)
+            })
+        });
 
-    alert(result.message || "Miejsce zaktualizowane.");
-    await adminManageSeats(eventId);
-  } catch (err) {
-    console.error(err);
-    alert("Błąd edycji miejsca: " + err.message);
-  }
+        alert(result.message || "Miejsce zaktualizowane.");
+        await adminManageSeats(eventId);
+    } catch (err) {
+        console.error(err);
+        alert("Błąd edycji miejsca: " + err.message);
+    }
 }
 
 let multiSeatIds = [];
-function drawSeats() {
-  document.querySelector("#seatsGrid").innerHTML = currentSeats.map(s => {
+
+function seatButtonHtml(s) {
     const selected = multiSeatIds.includes(Number(s.id)) ? "selected" : "";
 
     return `
-      <button 
-        class="seat ${seatClass(s)} ${selected}"
-        ${s.status !== "available" ? "disabled" : ""}
-        onclick="selectSeat(${s.id})"
-        title="Rząd ${s.row_label}, miejsce ${s.seat_number}">
-      </button>
-    `;
-  }).join("");
+    <button
+      class="seat ${seatClass(s)} ${selected}"
+      ${s.status !== "available" ? "disabled" : ""}
+      onclick="selectSeat(${s.id})"
+      title="Rząd ${s.row_label}, miejsce ${s.seat_number}">
+    </button>
+  `;
+}
+
+function buildSportStadiumHtml() {
+    const seats = currentSeats || [];
+    const total = seats.length;
+
+    const topCount = Math.ceil(total * 0.28);
+    const bottomCount = Math.ceil(total * 0.28);
+    const sideCount = Math.floor((total - topCount - bottomCount) / 2);
+
+    const topSeats = seats.slice(0, topCount);
+    const leftSeats = seats.slice(topCount, topCount + sideCount);
+    const rightSeats = seats.slice(topCount + sideCount, topCount + sideCount + sideCount);
+    const bottomSeats = seats.slice(topCount + sideCount + sideCount);
+
+    return `
+    <div class="sport-stadium-layout">
+      <div class="sport-stand top">
+        ${topSeats.map(seatButtonHtml).join("")}
+      </div>
+
+      <div class="sport-stand left">
+        ${leftSeats.map(seatButtonHtml).join("")}
+      </div>
+
+      <div class="sport-field-premium">
+        BOISKO / ARENA
+        <small>układ sportowy — miejsca rozmieszczone dookoła</small>
+      </div>
+
+      <div class="sport-stand right">
+        ${rightSeats.map(seatButtonHtml).join("")}
+      </div>
+
+      <div class="sport-stand bottom">
+        ${bottomSeats.map(seatButtonHtml).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function drawSeats() {
+    const layout = currentEvent ? getVenueLayout(currentEvent) : { type: "concert" };
+
+    if (layout.type === "sport") {
+        const box = document.querySelector("#venueDynamic");
+        if (box) box.innerHTML = buildSportStadiumHtml();
+        return;
+    }
+
+    const grid = document.querySelector("#seatsGrid");
+    if (!grid) return;
+
+    grid.innerHTML = currentSeats.map(seatButtonHtml).join("");
 }
 
 async function submitReservation(e) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!multiSeatIds.length) {
-    alert("Najpierw wybierz przynajmniej jedno miejsce.");
-    return;
-  }
+    if (isAdminPreviewMode() && currentEvent?.status !== "active") {
+        alert("To jest tylko podgląd szkicu. Rezerwacja jest wyłączona, dopóki wydarzenie nie będzie aktywne.");
+        return;
+    }
 
-  const form = new FormData(e.target);
+    if (!multiSeatIds.length) {
+        alert("Najpierw wybierz przynajmniej jedno miejsce.");
+        return;
+    }
 
-  try {
-    const data = await api("/api/reserve", {
-      method: "POST",
-      body: JSON.stringify({
-        event_id: currentEvent.id,
-        seat_ids: multiSeatIds,
-        first_name: form.get("first_name"),
-        last_name: form.get("last_name"),
-        email: form.get("email"),
-        phone: form.get("phone")
-      })
-    });
+    const form = new FormData(e.target);
 
-    renderConfirm(data.reservation);
-  } catch (err) {
-    alert(err.message);
-  }
+    try {
+        const data = await api("/api/reserve", {
+            method: "POST",
+            body: JSON.stringify({
+                event_id: currentEvent.id,
+                seat_ids: multiSeatIds,
+                first_name: form.get("first_name"),
+                last_name: form.get("last_name"),
+                email: form.get("email"),
+                phone: form.get("phone")
+            })
+        });
+
+        renderConfirm(data.reservation);
+    } catch (err) {
+        alert(err.message);
+    }
 }
 
 async function lookupReservation() {
-  const code = document.querySelector("#lookupCode").value.trim().toUpperCase();
+    const code = document.querySelector("#lookupCode").value.trim().toUpperCase();
 
-  if (!code) {
-    document.querySelector("#lookupResult").innerHTML = `<div class="notice">Wpisz numer rezerwacji.</div>`;
-    return;
-  }
+    if (!code) {
+        document.querySelector("#lookupResult").innerHTML = `<div class="notice">Wpisz numer rezerwacji.</div>`;
+        return;
+    }
 
-  try {
-    const r = await api(`/api/reservation/${code}`);
-    const seats = r.seats || [];
+    try {
+        const r = await api(`/api/reservation/${code}`);
+        const seats = r.seats || [];
 
-    const seatsHtml = seats.map(s => `
+        const seatsHtml = seats.map(s => `
       Sektor ${s.sector}, rząd ${s.row_label}, miejsce ${s.seat_number}
     `).join("<br>");
 
-    document.querySelector("#lookupResult").innerHTML = `
+        document.querySelector("#lookupResult").innerHTML = `
       <div class="notice">
         <b>${r.event_title}</b><br>
         ${datePL(r.event_date)}, ${r.event_time}<br>
@@ -530,15 +627,22 @@ async function lookupReservation() {
         <b>Status:</b> ${r.status}
       </div>
     `;
-  } catch (err) {
-    document.querySelector("#lookupResult").innerHTML = `<div class="notice">${err.message}</div>`;
-  }
+    } catch (err) {
+        document.querySelector("#lookupResult").innerHTML = `<div class="notice">${err.message}</div>`;
+    }
 }
 
 function reservationsTable(rows) {
-  if (!rows.length) return `<p>Brak rezerwacji.</p>`;
+    if (!rows || !rows.length) {
+        return `
+      <div class="empty-state">
+        <h3>Brak rezerwacji</h3>
+        <p>Gdy użytkownik zarezerwuje miejsce, pojawi się tutaj.</p>
+      </div>
+    `;
+    }
 
-  return `
+    return `
     <table class="table">
       <thead>
         <tr>
@@ -578,88 +682,71 @@ function reservationsTable(rows) {
 }
 
 function getVenueLayout(event) {
-  const category = (event.category || "").toLowerCase();
-  const template = (event.template || "").toLowerCase();
+    const category = (event.category || "").toLowerCase();
+    const template = (event.template || "").toLowerCase();
 
-  if (category.includes("sport")) {
+    if (category.includes("sport")) {
+        return {
+            type: "sport",
+            name: "Układ sportowy",
+            description: "Arena lub boisko znajduje się na środku, a miejsca są rozmieszczone po bokach."
+        };
+    }
+
+    if (category.includes("konferencja")) {
+        return {
+            type: "conference",
+            name: "Układ konferencyjny",
+            description: "Miejsca skierowane są w stronę sceny/prelegenta umieszczonego po prawej stronie."
+        };
+    }
+
+    if (category.includes("warsztat")) {
+        return {
+            type: "workshop",
+            name: "Układ warsztatowy",
+            description: "Układ przypomina salę szkoleniową z przestrzenią roboczą dla prowadzącego."
+        };
+    }
+
+    if (category.includes("teatr")) {
+        return {
+            type: "theatre",
+            name: "Układ teatralny",
+            description: "Klasyczna scena z przodu i rzędy miejsc skierowane w stronę występu."
+        };
+    }
+
+    if (template.includes("concert") || category.includes("koncert")) {
+        return {
+            type: "concert",
+            name: "Układ koncertowy",
+            description: "Scena znajduje się z przodu, a miejsca rozmieszczone są przed sceną."
+        };
+    }
+
     return {
-      type: "sport",
-      name: "Układ sportowy",
-      description: "Arena lub boisko znajduje się na środku, a miejsca są rozmieszczone po bokach."
+        type: "concert",
+        name: "Układ standardowy",
+        description: "Standardowy układ sali z główną sceną z przodu."
     };
-  }
-
-  if (category.includes("konferencja")) {
-    return {
-      type: "conference",
-      name: "Układ konferencyjny",
-      description: "Miejsca skierowane są w stronę sceny/prelegenta umieszczonego po prawej stronie."
-    };
-  }
-
-  if (category.includes("warsztat")) {
-    return {
-      type: "workshop",
-      name: "Układ warsztatowy",
-      description: "Układ przypomina salę szkoleniową z przestrzenią roboczą dla prowadzącego."
-    };
-  }
-
-  if (category.includes("teatr")) {
-    return {
-      type: "theatre",
-      name: "Układ teatralny",
-      description: "Klasyczna scena z przodu i rzędy miejsc skierowane w stronę występu."
-    };
-  }
-
-  if (template.includes("concert") || category.includes("koncert")) {
-    return {
-      type: "concert",
-      name: "Układ koncertowy",
-      description: "Scena znajduje się z przodu, a miejsca rozmieszczone są przed sceną."
-    };
-  }
-
-  return {
-    type: "concert",
-    name: "Układ standardowy",
-    description: "Standardowy układ sali z główną sceną z przodu."
-  };
 }
 
 function buildSeatGridHtml() {
-  return `
+    return `
     <div id="seatsGrid" class="seats-grid" style="grid-template-columns:repeat(${currentEvent.seats_per_row},25px)"></div>
   `;
 }
 
 function renderVenueLayoutShell() {
-  const layout = getVenueLayout(currentEvent);
+    const layout = getVenueLayout(currentEvent);
 
-  if (layout.type === "sport") {
-    return `
-      <div class="venue-layout-wrapper sport-layout">
-        <div class="sport-side">
-          ${buildSeatGridHtml()}
-        </div>
+    if (layout.type === "sport") {
+        return `<div id="venueDynamic">${buildSportStadiumHtml()}</div>`;
+    }
 
-        <div class="sport-arena">
-          BOISKO / ARENA
-          <span>układ dla wydarzeń sportowych</span>
-        </div>
-
-        <div class="sport-side">
-          <div class="notice" style="margin:0">
-            W tym układzie środek obiektu pełni rolę boiska lub areny. Miejsca są nadal wybierane z mapy po lewej stronie.
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (layout.type === "conference") {
-    return `
+    if (layout.type === "conference") {
+        return `
       <div class="venue-layout-wrapper conference-layout">
         ${buildSeatGridHtml()}
 
@@ -669,10 +756,10 @@ function renderVenueLayoutShell() {
         </div>
       </div>
     `;
-  }
+    }
 
-  if (layout.type === "workshop") {
-    return `
+    if (layout.type === "workshop") {
+        return `
       <div class="venue-layout-wrapper workshop-layout">
         ${buildSeatGridHtml()}
 
@@ -683,18 +770,18 @@ function renderVenueLayoutShell() {
         </div>
       </div>
     `;
-  }
+    }
 
-  if (layout.type === "theatre") {
-    return `
+    if (layout.type === "theatre") {
+        return `
       <div class="venue-layout-wrapper theatre-layout">
         <div class="stage">SCENA TEATRALNA</div>
         ${buildSeatGridHtml()}
       </div>
     `;
-  }
+    }
 
-  return `
+    return `
     <div class="venue-layout-wrapper concert-layout">
       <div class="stage">SCENA</div>
       ${buildSeatGridHtml()}
@@ -703,97 +790,119 @@ function renderVenueLayoutShell() {
 }
 
 function showToast(message, type = "success") {
-  let box = document.querySelector(".toast-box");
+    let box = document.querySelector(".toast-box");
 
-  if (!box) {
-    box = document.createElement("div");
-    box.className = "toast-box";
-    document.body.appendChild(box);
-  }
+    if (!box) {
+        box = document.createElement("div");
+        box.className = "toast-box";
+        document.body.appendChild(box);
+    }
 
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
 
-  box.appendChild(toast);
+    box.appendChild(toast);
 
-  setTimeout(() => {
-    toast.remove();
-  }, 3200);
+    setTimeout(() => {
+        toast.remove();
+    }, 3200);
 }
 
 function safeText(value, fallback = "-") {
-  return value === undefined || value === null || value === "" ? fallback : value;
+    return value === undefined || value === null || value === "" ? fallback : value;
 }
 
 function validateEventPayload(body) {
-  if (!body.title || body.title.trim().length < 3) {
-    return "Nazwa wydarzenia musi mieć co najmniej 3 znaki.";
-  }
+    if (!body.title || body.title.trim().length < 3) {
+        return "Nazwa wydarzenia musi mieć co najmniej 3 znaki.";
+    }
 
-  if (!body.event_date) {
-    return "Wybierz datę wydarzenia.";
-  }
+    if (!body.event_date) {
+        return "Wybierz datę wydarzenia.";
+    }
 
-  if (!body.event_time) {
-    return "Wybierz godzinę wydarzenia.";
-  }
+    if (!body.event_time) {
+        return "Wybierz godzinę wydarzenia.";
+    }
 
-  if (!body.location || body.location.trim().length < 2) {
-    return "Podaj lokalizację wydarzenia.";
-  }
+    if (!body.location || body.location.trim().length < 2) {
+        return "Podaj lokalizację wydarzenia.";
+    }
 
-  if (!body.address || body.address.trim().length < 2) {
-    return "Podaj adres wydarzenia.";
-  }
+    if (!body.address || body.address.trim().length < 2) {
+        return "Podaj adres wydarzenia.";
+    }
 
-  if (Number(body.price) < 0) {
-    return "Cena nie może być ujemna.";
-  }
+    if (Number(body.price) < 0) {
+        return "Cena nie może być ujemna.";
+    }
 
-  if (body.image_url && !body.image_url.startsWith("http")) {
-    return "Link do zdjęcia powinien zaczynać się od http lub https.";
-  }
+    if (Number(body.rows_count || 1) < 1 || Number(body.rows_count || 1) > 30) {
+        return "Liczba rzędów musi być od 1 do 30.";
+    }
 
-  return null;
+    if (Number(body.seats_per_row || 1) < 1 || Number(body.seats_per_row || 1) > 40) {
+        return "Liczba miejsc w rzędzie musi być od 1 do 40.";
+    }
+
+    if (body.image_url && !body.image_url.startsWith("http")) {
+        return "Link do zdjęcia powinien zaczynać się od http lub https.";
+    }
+
+    return null;
 }
 
 function statusPill(status) {
-  const s = status || "draft";
-  return `<span class="status-pill ${s}">${s}</span>`;
+    const s = status || "draft";
+    return `<span class="status-pill ${s}">${s}</span>`;
 }
 
 function updateImagePreview() {
-  const input = document.querySelector("[name='image_url']");
-  const preview = document.querySelector("#imagePreview");
+    const input = document.querySelector("[name='image_url']");
+    const preview = document.querySelector("#imagePreview");
 
-  if (!input || !preview) return;
+    if (!input || !preview) return;
 
-  const url = input.value.trim();
+    const url = input.value.trim();
 
-  if (!url) {
-    preview.style.display = "none";
-    return;
-  }
+    if (!url) {
+        preview.style.display = "none";
+        return;
+    }
 
-  preview.src = url;
-  preview.style.display = "block";
+    preview.src = url;
+    preview.style.display = "block";
 }
 
 function setQuickStatus(value) {
-  const select = document.querySelector("[name='status']");
-  if (select) {
-    select.value = value;
-    showToast("Ustawiono status: " + value, "success");
-  }
+    const select = document.querySelector("[name='status']");
+    if (select) {
+        select.value = value;
+        showToast("Ustawiono status: " + value, "success");
+    }
+}
+
+function isAdminPreviewMode() {
+    return new URLSearchParams(location.search).get("adminPreview") === "1" && !!adminToken;
+}
+
+function previewUrlForEvent(id) {
+    return `${location.origin}${location.pathname}?adminPreview=1#event/${id}`;
+}
+
+function openEventPreview(id) {
+    const url = `${location.pathname}?adminPreview=1#event/${id}`;
+    history.pushState(null, "", url);
+    router();
 }
 
 async function adminEvents() {
-  try {
-    const events = await api("/api/admin/events");
+    try {
+        const events = await api("/api/admin/events");
 
-    if (!events.length) {
-      document.querySelector("#adminMain").innerHTML = `
+        if (!events.length) {
+            document.querySelector("#adminMain").innerHTML = `
         <div class="section-head">
           <h1>Wydarzenia</h1>
           <button class="primary" onclick="location.hash='admin/add'">+ Dodaj wydarzenie</button>
@@ -804,10 +913,10 @@ async function adminEvents() {
           <p>Dodaj pierwsze wydarzenie, aby rozpocząć pracę z systemem.</p>
         </div>
       `;
-      return;
-    }
+            return;
+        }
 
-    document.querySelector("#adminMain").innerHTML = `
+        document.querySelector("#adminMain").innerHTML = `
       <div class="section-head">
         <h1>Wydarzenia</h1>
         <button class="primary" onclick="location.hash='admin/add'">+ Dodaj wydarzenie</button>
@@ -842,6 +951,7 @@ async function adminEvents() {
               <td>${statusPill(e.status)}</td>
               <td>${e.seats_available}/${e.seats_total}</td>
               <td class="actions">
+                <button class="secondary preview-btn" onclick="openEventPreview(${e.id})">Podgląd</button>
                 <button class="secondary" onclick="location.hash='admin/edit/${e.id}'">Edytuj</button>
                 <button class="secondary" onclick="location.hash='admin/seats/${e.id}'">Miejsca</button>
                 <button class="danger" onclick="adminDeactivateEvent(${e.id})">Dezaktywuj</button>
@@ -852,13 +962,13 @@ async function adminEvents() {
         </tbody>
       </table>
     `;
-  } catch (err) {
-    showToast("Błąd pobierania wydarzeń: " + err.message, "error");
-  }
+    } catch (err) {
+        showToast("Błąd pobierania wydarzeń: " + err.message, "error");
+    }
 }
 
 function adminEventForm(e = {}) {
-  return `
+    return `
     <form id="eventForm" class="panel">
       <div class="admin-warning">
         Pola nazwa, data, godzina, lokalizacja i adres są wymagane. Status <b>active</b> oznacza, że wydarzenie jest widoczne dla użytkowników.
@@ -929,17 +1039,16 @@ function adminEventForm(e = {}) {
           </div>
         </div>
 
-        ${e.id ? "" : `
-          <div class="form-group">
-            <label>Liczba rzędów</label>
-            <input name="rows_count" type="number" min="1" max="30" value="6">
-          </div>
+        <div class="form-group">
+          <label>Liczba rzędów</label>
+          <input name="rows_count" type="number" min="1" max="30" value="${e.rows_count ?? 6}">
+          <div class="form-hint">${e.id ? "Zmiana układu miejsc działa tylko przy statusie draft i przebuduje miejsca od nowa." : "Te wartości utworzą początkowy układ miejsc."}</div>
+        </div>
 
-          <div class="form-group">
-            <label>Miejsc w rzędzie</label>
-            <input name="seats_per_row" type="number" min="1" max="40" value="10">
-          </div>
-        `}
+        <div class="form-group">
+          <label>Miejsc w rzędzie</label>
+          <input name="seats_per_row" type="number" min="1" max="40" value="${e.seats_per_row ?? 10}">
+        </div>
       </div>
 
       <div class="form-group">
@@ -960,171 +1069,173 @@ function adminEventForm(e = {}) {
 }
 
 async function adminAdd() {
-  document.querySelector("#adminMain").innerHTML = `
+    document.querySelector("#adminMain").innerHTML = `
     <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
     <h1>Dodaj wydarzenie</h1>
     ${adminEventForm()}
   `;
 
-  document.querySelector("#eventForm").onsubmit = async function(ev) {
-    ev.preventDefault();
+    document.querySelector("#eventForm").onsubmit = async function (ev) {
+        ev.preventDefault();
 
-    const fd = Object.fromEntries(new FormData(ev.target).entries());
+        const fd = Object.fromEntries(new FormData(ev.target).entries());
 
-    const body = {
-      title: fd.title?.trim(),
-      description: fd.description?.trim(),
-      category: fd.category,
-      event_date: fd.event_date,
-      event_time: fd.event_time,
-      location: fd.location?.trim(),
-      address: fd.address?.trim(),
-      price: Number(fd.price || 0),
-      image_url: fd.image_url?.trim(),
-      template: fd.template,
-      status: fd.status || "active",
-      rows_count: Number(fd.rows_count || 6),
-      seats_per_row: Number(fd.seats_per_row || 10)
+        const body = {
+            title: fd.title?.trim(),
+            description: fd.description?.trim(),
+            category: fd.category,
+            event_date: fd.event_date,
+            event_time: fd.event_time,
+            location: fd.location?.trim(),
+            address: fd.address?.trim(),
+            price: Number(fd.price || 0),
+            image_url: fd.image_url?.trim(),
+            template: fd.template,
+            status: fd.status || "active",
+            rows_count: Number(fd.rows_count || 6),
+            seats_per_row: Number(fd.seats_per_row || 10)
+        };
+
+        const validationError = validateEventPayload(body);
+
+        if (validationError) {
+            showToast(validationError, "warning");
+            return;
+        }
+
+        try {
+            await api("/api/admin/events", {
+                method: "POST",
+                body: JSON.stringify(body)
+            });
+
+            showToast("Dodano wydarzenie.", "success");
+            location.hash = "admin/events";
+        } catch (err) {
+            console.error(err);
+            showToast("Błąd dodawania wydarzenia: " + err.message, "error");
+        }
     };
-
-    const validationError = validateEventPayload(body);
-
-    if (validationError) {
-      showToast(validationError, "warning");
-      return;
-    }
-
-    try {
-      await api("/api/admin/events", {
-        method: "POST",
-        body: JSON.stringify(body)
-      });
-
-      showToast("Dodano wydarzenie.", "success");
-      location.hash = "admin/events";
-    } catch (err) {
-      console.error(err);
-      showToast("Błąd dodawania wydarzenia: " + err.message, "error");
-    }
-  };
 }
 
 async function adminEditEvent(id) {
-  try {
-    const data = await api(`/api/event/${id}`);
-    const e = data.event;
+    try {
+        const data = await api(`/api/event/${id}`);
+        const e = data.event;
 
-    document.querySelector("#adminMain").innerHTML = `
+        document.querySelector("#adminMain").innerHTML = `
       <button class="secondary" onclick="location.hash='admin/events'">← Wróć</button>
       <h1>Edytuj wydarzenie</h1>
       ${adminEventForm(e)}
     `;
 
-    document.querySelector("#eventForm").onsubmit = async function(ev) {
-      ev.preventDefault();
+        document.querySelector("#eventForm").onsubmit = async function (ev) {
+            ev.preventDefault();
 
-      const fd = Object.fromEntries(new FormData(ev.target).entries());
+            const fd = Object.fromEntries(new FormData(ev.target).entries());
 
-      const body = {
-        title: fd.title?.trim(),
-        description: fd.description?.trim(),
-        category: fd.category,
-        event_date: fd.event_date,
-        event_time: fd.event_time,
-        location: fd.location?.trim(),
-        address: fd.address?.trim(),
-        price: Number(fd.price || 0),
-        image_url: fd.image_url?.trim(),
-        template: fd.template,
-        status: fd.status
-      };
+            const body = {
+                title: fd.title?.trim(),
+                description: fd.description?.trim(),
+                category: fd.category,
+                event_date: fd.event_date,
+                event_time: fd.event_time,
+                location: fd.location?.trim(),
+                address: fd.address?.trim(),
+                price: Number(fd.price || 0),
+                image_url: fd.image_url?.trim(),
+                template: fd.template,
+                status: fd.status,
+                rows_count: Number(fd.rows_count || 6),
+                seats_per_row: Number(fd.seats_per_row || 10)
+            };
 
-      const validationError = validateEventPayload(body);
+            const validationError = validateEventPayload(body);
 
-      if (validationError) {
-        showToast(validationError, "warning");
-        return;
-      }
+            if (validationError) {
+                showToast(validationError, "warning");
+                return;
+            }
 
-      try {
-        const result = await api(`/api/admin/event/${id}`, {
-          method: "PUT",
-          body: JSON.stringify(body)
-        });
+            try {
+                const result = await api(`/api/admin/event/${id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(body)
+                });
 
-        showToast(result.message || "Zapisano zmiany.", "success");
-        location.hash = "admin/events";
-      } catch (err) {
-        console.error(err);
-        showToast("Błąd zapisu wydarzenia: " + err.message, "error");
-      }
-    };
-  } catch (err) {
-    showToast("Błąd otwierania edycji: " + err.message, "error");
-  }
+                showToast(result.message || "Zapisano zmiany.", "success");
+                location.hash = "admin/events";
+            } catch (err) {
+                console.error(err);
+                showToast("Błąd zapisu wydarzenia: " + err.message, "error");
+            }
+        };
+    } catch (err) {
+        showToast("Błąd otwierania edycji: " + err.message, "error");
+    }
 }
 
 async function adminDeactivateEvent(id) {
-  if (!confirm("Na pewno dezaktywować/anulować wydarzenie? Nie będzie widoczne na stronie głównej.")) {
-    return;
-  }
+    if (!confirm("Na pewno dezaktywować/anulować wydarzenie? Nie będzie widoczne na stronie głównej.")) {
+        return;
+    }
 
-  try {
-    const result = await api(`/api/admin/event/${id}`, {
-      method: "DELETE"
-    });
+    try {
+        const result = await api(`/api/admin/event/${id}`, {
+            method: "DELETE"
+        });
 
-    showToast(result.message || "Wydarzenie zostało dezaktywowane.", "success");
-    await adminEvents();
-  } catch (err) {
-    console.error(err);
-    showToast("Błąd dezaktywacji: " + err.message, "error");
-  }
+        showToast(result.message || "Wydarzenie zostało dezaktywowane.", "success");
+        await adminEvents();
+    } catch (err) {
+        console.error(err);
+        showToast("Błąd dezaktywacji: " + err.message, "error");
+    }
 }
 
 async function adminDeleteEvent(id) {
-  if (!confirm("Na pewno całkowicie usunąć wydarzenie? Ta akcja usunie też jego miejsca i rezerwacje.")) {
-    return;
-  }
+    if (!confirm("Na pewno całkowicie usunąć wydarzenie? Ta akcja usunie też jego miejsca i rezerwacje.")) {
+        return;
+    }
 
-  const secondConfirm = prompt("Wpisz USUN, aby potwierdzić trwałe usunięcie wydarzenia.");
+    const secondConfirm = prompt("Wpisz USUN, aby potwierdzić trwałe usunięcie wydarzenia.");
 
-  if (secondConfirm !== "USUN") {
-    showToast("Usuwanie anulowane.", "warning");
-    return;
-  }
+    if (secondConfirm !== "USUN") {
+        showToast("Usuwanie anulowane.", "warning");
+        return;
+    }
 
-  try {
-    const result = await api(`/api/admin/event/${id}?mode=delete`, {
-      method: "DELETE"
-    });
+    try {
+        const result = await api(`/api/admin/event/${id}?mode=delete`, {
+            method: "DELETE"
+        });
 
-    showToast(result.message || "Wydarzenie zostało usunięte.", "success");
-    await adminEvents();
-  } catch (err) {
-    console.error(err);
-    showToast("Błąd usuwania: " + err.message, "error");
-  }
+        showToast(result.message || "Wydarzenie zostało usunięte.", "success");
+        await adminEvents();
+    } catch (err) {
+        console.error(err);
+        showToast("Błąd usuwania: " + err.message, "error");
+    }
 }
 
 function updateSelectedSeatsInfo() {
-  const selectedSeats = currentSeats.filter(s => multiSeatIds.includes(Number(s.id)));
+    const selectedSeats = currentSeats.filter(s => multiSeatIds.includes(Number(s.id)));
 
-  if (!selectedSeats.length) {
-    document.querySelector("#seatInfo").innerHTML = "Kliknij jedno lub kilka dostępnych miejsc.";
-    document.querySelector("#selectedSummary").innerHTML = "Nie wybrano miejsc.";
-    return;
-  }
+    if (!selectedSeats.length) {
+        document.querySelector("#seatInfo").innerHTML = "Kliknij jedno lub kilka dostępnych miejsc.";
+        document.querySelector("#selectedSummary").innerHTML = "Nie wybrano miejsc.";
+        return;
+    }
 
-  const labels = selectedSeats.map(s => `Sektor ${s.sector}, rząd ${s.row_label}, miejsce ${s.seat_number}`);
-  const total = selectedSeats.reduce((sum, s) => sum + Number(s.price || 0), 0);
+    const labels = selectedSeats.map(s => `Sektor ${s.sector}, rząd ${s.row_label}, miejsce ${s.seat_number}`);
+    const total = selectedSeats.reduce((sum, s) => sum + Number(s.price || 0), 0);
 
-  document.querySelector("#seatInfo").innerHTML = `
+    document.querySelector("#seatInfo").innerHTML = `
     <span class="selected-counter">Wybrano miejsc: ${selectedSeats.length}</span><br>
     ${labels.join("<br>")}
   `;
 
-  document.querySelector("#selectedSummary").innerHTML = `
+    document.querySelector("#selectedSummary").innerHTML = `
     <b>Liczba miejsc:</b> ${selectedSeats.length}<br>
     <b>Miejsca:</b><br>
     ${labels.join("<br>")}<br>
@@ -1134,7 +1245,7 @@ function updateSelectedSeatsInfo() {
 }
 
 async function renderHome() {
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="hero">
       <div class="hero-inner">
         <span class="pill">KONCERTY • WARSZTATY • KONFERENCJE • SPORT</span>
@@ -1165,164 +1276,129 @@ async function renderHome() {
 </section>
   `;
 
-  document.querySelector("#searchBtn").onclick = loadEvents;
-  document.querySelector("#category").onchange = loadEvents;
+    document.querySelector("#searchBtn").onclick = loadEvents;
+    document.querySelector("#category").onchange = loadEvents;
 
-  await loadEvents();
+    await loadEvents();
 }
 
 function showLoader() {
-  if (document.querySelector(".loading-overlay")) return;
+    if (document.querySelector(".loading-overlay")) return;
 
-  const overlay = document.createElement("div");
-  overlay.className = "loading-overlay";
-  overlay.innerHTML = `<div class="loader"></div>`;
-  document.body.appendChild(overlay);
+    const overlay = document.createElement("div");
+    overlay.className = "loading-overlay";
+    overlay.innerHTML = `<div class="loader"></div>`;
+    document.body.appendChild(overlay);
 }
 
 function hideLoader() {
-  const overlay = document.querySelector(".loading-overlay");
-  if (overlay) {
-    overlay.style.opacity = "0";
-    setTimeout(() => overlay.remove(), 150);
-  }
+    const overlay = document.querySelector(".loading-overlay");
+    if (overlay) {
+        overlay.style.opacity = "0";
+        setTimeout(() => overlay.remove(), 150);
+    }
 }
 
 function addRippleEffect() {
-  document.addEventListener("click", function(e) {
-    const btn = e.target.closest("button");
-    if (!btn) return;
+    document.addEventListener("click", function (e) {
+        const btn = e.target.closest("button");
+        if (!btn) return;
 
-    const rect = btn.getBoundingClientRect();
-    const circle = document.createElement("span");
-    const size = Math.max(rect.width, rect.height);
+        const rect = btn.getBoundingClientRect();
+        const circle = document.createElement("span");
+        const size = Math.max(rect.width, rect.height);
 
-    circle.className = "ripple";
-    circle.style.width = circle.style.height = size + "px";
-    circle.style.left = (e.clientX - rect.left - size / 2) + "px";
-    circle.style.top = (e.clientY - rect.top - size / 2) + "px";
+        circle.className = "ripple";
+        circle.style.width = circle.style.height = size + "px";
+        circle.style.left = (e.clientX - rect.left - size / 2) + "px";
+        circle.style.top = (e.clientY - rect.top - size / 2) + "px";
 
-    btn.appendChild(circle);
+        btn.appendChild(circle);
 
-    setTimeout(() => circle.remove(), 600);
-  });
+        setTimeout(() => circle.remove(), 600);
+    });
 }
 
 function revealElements() {
-  const items = document.querySelectorAll(".card, .panel, .info, .stat");
+    const items = document.querySelectorAll(".card, .panel, .info, .stat");
 
-  items.forEach(el => {
-    el.classList.add("reveal");
-  });
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("revealed");
-        observer.unobserve(entry.target);
-      }
+    items.forEach(el => {
+        el.classList.add("reveal", "revealed");
     });
-  }, { threshold: .12 });
 
-  items.forEach(el => observer.observe(el));
+    if (!("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add("revealed");
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: .12 });
+
+    items.forEach(el => observer.observe(el));
 }
 
 function runConfetti() {
-  const colors = ["#6d28d9", "#2563eb", "#22c55e", "#f59e0b", "#ef4444", "#a855f7"];
+    const colors = ["#6d28d9", "#2563eb", "#22c55e", "#f59e0b", "#ef4444", "#a855f7"];
 
-  for (let i = 0; i < 38; i++) {
-    const piece = document.createElement("div");
-    piece.className = "confetti-piece";
-    piece.style.left = Math.random() * 100 + "vw";
-    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-    piece.style.animationDelay = (Math.random() * .45) + "s";
-    piece.style.transform = `rotate(${Math.random() * 180}deg)`;
+    for (let i = 0; i < 38; i++) {
+        const piece = document.createElement("div");
+        piece.className = "confetti-piece";
+        piece.style.left = Math.random() * 100 + "vw";
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDelay = (Math.random() * .45) + "s";
+        piece.style.transform = `rotate(${Math.random() * 180}deg)`;
 
-    document.body.appendChild(piece);
+        document.body.appendChild(piece);
 
-    setTimeout(() => piece.remove(), 2300);
-  }
+        setTimeout(() => piece.remove(), 2300);
+    }
 }
 
 function enhanceAfterRender() {
-  setTimeout(() => {
-    revealElements();
-  }, 40);
+    setTimeout(() => {
+        revealElements();
+        enhanceAdminScroll();
+    }, 40);
 }
 
-const __oldRouterWow = router;
-
-router = async function() {
-  const appEl = document.querySelector("#app");
-
-  if (appEl) {
-    appEl.classList.add("page-transition-out");
-    await new Promise(resolve => setTimeout(resolve, 120));
-    appEl.classList.remove("page-transition-out");
-  }
-
-  await __oldRouterWow();
-  enhanceAfterRender();
-};
-
-const __oldApiWow = api;
-
-api = async function(url, options = {}) {
-  const isMutation = options && options.method && options.method !== "GET";
-
-  if (isMutation) showLoader();
-
-  try {
-    return await __oldApiWow(url, options);
-  } finally {
-    if (isMutation) hideLoader();
-  }
-};
-
-const __oldRenderConfirmWow = renderConfirm;
-
-renderConfirm = function(r) {
-  __oldRenderConfirmWow(r);
-  setTimeout(runConfetti, 160);
-  enhanceAfterRender();
-};
-
-// Start efektów
 addRippleEffect();
 enhanceAfterRender();
 
-function premiumSteps(active){
-  const steps = [
-    ['1','Wydarzenie'],
-    ['2','Miejsca i dane'],
-    ['3','Potwierdzenie']
-  ];
+function premiumSteps(active) {
+    const steps = [
+        ['1', 'Wydarzenie'],
+        ['2', 'Miejsca i dane'],
+        ['3', 'Potwierdzenie']
+    ];
 
-  return `
+    return `
     <div class="progress-steps">
-      ${steps.map(([n,label],i)=>{
+      ${steps.map(([n, label], i) => {
         const num = i + 1;
         return `<div class="step ${num < active ? 'done' : num === active ? 'active' : ''}">
           <strong>${n}</strong>${label}
         </div>`;
-      }).join('')}
+    }).join('')}
     </div>
   `;
 }
 
 function closeSeatModal() {
-  const modal = document.querySelector(".seat-modal-backdrop");
-  if (modal) modal.remove();
+    const modal = document.querySelector(".seat-modal-backdrop");
+    if (modal) modal.remove();
 }
 
 function showSeatModal(seat) {
-  const isSelected = multiSeatIds.includes(Number(seat.id));
+    const isSelected = multiSeatIds.includes(Number(seat.id));
 
-  closeSeatModal();
+    closeSeatModal();
 
-  const modal = document.createElement("div");
-  modal.className = "seat-modal-backdrop";
-  modal.innerHTML = `
+    const modal = document.createElement("div");
+    modal.className = "seat-modal-backdrop";
+    modal.innerHTML = `
     <div class="seat-modal">
       <h3>Miejsce ${seat.row_label}${seat.seat_number}</h3>
       <p class="meta">Sprawdź szczegóły miejsca przed dodaniem do rezerwacji.</p>
@@ -1345,48 +1421,51 @@ function showSeatModal(seat) {
     </div>
   `;
 
-  document.body.appendChild(modal);
+    document.body.appendChild(modal);
 
-  modal.addEventListener("click", function(e) {
-    if (e.target.classList.contains("seat-modal-backdrop")) {
-      closeSeatModal();
-    }
-  });
+    modal.addEventListener("click", function (e) {
+        if (e.target.classList.contains("seat-modal-backdrop")) {
+            closeSeatModal();
+        }
+    });
 }
 
 function toggleSeatFromModal(id) {
-  id = Number(id);
+    id = Number(id);
 
-  if (multiSeatIds.includes(id)) {
-    multiSeatIds = multiSeatIds.filter(x => x !== id);
-  } else {
-    multiSeatIds.push(id);
-  }
+    if (multiSeatIds.includes(id)) {
+        multiSeatIds = multiSeatIds.filter(x => x !== id);
+    } else {
+        multiSeatIds.push(id);
+    }
 
-  drawSeats();
-  updateSelectedSeatsInfo();
-  closeSeatModal();
+    drawSeats();
+    updateSelectedSeatsInfo();
+    closeSeatModal();
 }
 
 function selectSeat(id) {
-  id = Number(id);
+    id = Number(id);
 
-  const seat = currentSeats.find(s => Number(s.id) === id);
+    const seat = currentSeats.find(s => Number(s.id) === id);
 
-  if (!seat || seat.status !== "available") return;
+    if (!seat || seat.status !== "available") return;
 
-  showSeatModal(seat);
+    showSeatModal(seat);
 }
 
 async function renderReserve(id) {
-  const data = await api(`/api/event/${id}`);
+    const data = await api(`/api/event/${id}`);
 
-  currentEvent = data.event;
-  currentSeats = data.seats;
-  multiSeatIds = [];
+    currentEvent = data.event;
+    currentSeats = data.seats;
+    multiSeatIds = [];
 
-  if (currentEvent.status !== "active") {
-    app.innerHTML = `
+    const adminPreview = isAdminPreviewMode();
+    const canReserve = currentEvent.status === "active";
+
+    if (!canReserve && !adminPreview) {
+        app.innerHTML = `
       <section class="container">
         <div class="panel glass-panel">
           <h1>Rezerwacja niedostępna</h1>
@@ -1394,18 +1473,25 @@ async function renderReserve(id) {
         </div>
       </section>
     `;
-    return;
-  }
+        return;
+    }
 
-  const layout = getVenueLayout(currentEvent);
+    const layout = getVenueLayout(currentEvent);
 
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="seat-layout">
       <div class="seat-map glass-panel">
         <button class="secondary" onclick="location.hash='event/${currentEvent.id}'">← Wróć</button>
         <h2>${currentEvent.title}</h2>
 
         ${premiumSteps(2)}
+
+        ${adminPreview && !canReserve ? `
+          <div class="notice">
+            <b>Podgląd admina</b><br>
+            Wydarzenie ma status <b>${currentEvent.status}</b>, więc formularz rezerwacji jest wyłączony. Możesz jednak sprawdzić układ miejsc i wygląd wyboru miejsc.
+          </div>
+        ` : ""}
 
         <div class="venue-layout-info">
           <b>${layout.name}</b><br>
@@ -1429,55 +1515,62 @@ async function renderReserve(id) {
       </div>
 
       <aside class="panel glass-panel floating-summary">
-        <h2>Twoja rezerwacja</h2>
+        <h2>${canReserve ? "Twoja rezerwacja" : "Podgląd wyboru"}</h2>
 
         <div id="selectedSummary" class="notice">
           Nie wybrano miejsc.
         </div>
 
-        <form id="reservationForm">
-          <div class="form-group">
-            <label>Imię</label>
-            <input name="first_name" required>
+        ${canReserve ? `
+          <form id="reservationForm">
+            <div class="form-group">
+              <label>Imię</label>
+              <input name="first_name" required>
+            </div>
+
+            <div class="form-group">
+              <label>Nazwisko</label>
+              <input name="last_name" required>
+            </div>
+
+            <div class="form-group">
+              <label>E-mail</label>
+              <input name="email" type="email" required>
+            </div>
+
+            <div class="form-group">
+              <label>Telefon</label>
+              <input name="phone" minlength="7" required>
+            </div>
+
+            <label style="display:flex;gap:8px;margin:12px 0 16px">
+              <input type="checkbox" required> Akceptuję regulamin.
+            </label>
+
+            <button class="primary" style="width:100%">Zarezerwuj wybrane miejsca</button>
+          </form>
+        ` : `
+          <div class="notice">
+            To jest szkic, więc prawdziwa rezerwacja jest zablokowana. Po zmianie statusu na <b>active</b> formularz pojawi się normalnie.
           </div>
-
-          <div class="form-group">
-            <label>Nazwisko</label>
-            <input name="last_name" required>
-          </div>
-
-          <div class="form-group">
-            <label>E-mail</label>
-            <input name="email" type="email" required>
-          </div>
-
-          <div class="form-group">
-            <label>Telefon</label>
-            <input name="phone" minlength="7" required>
-          </div>
-
-          <label style="display:flex;gap:8px;margin:12px 0 16px">
-            <input type="checkbox" required> Akceptuję regulamin.
-          </label>
-
-          <button class="primary" style="width:100%">Zarezerwuj wybrane miejsca</button>
-        </form>
+        `}
       </aside>
     </section>
   `;
 
-  drawSeats();
+    drawSeats();
 
-  document.querySelector("#reservationForm").onsubmit = submitReservation;
+    const form = document.querySelector("#reservationForm");
+    if (form) form.onsubmit = submitReservation;
 }
 
 function renderConfirm(r) {
-  const seats = r.seats || [];
-  const seatsHtml = seats.map(s => `
+    const seats = r.seats || [];
+    const seatsHtml = seats.map(s => `
     Sektor ${s.sector}, rząd ${s.row_label}, miejsce ${s.seat_number}
   `).join("<br>");
 
-  app.innerHTML = `
+    app.innerHTML = `
     <section class="ticket-wrap">
       ${premiumSteps(3)}
 
@@ -1519,19 +1612,19 @@ function renderConfirm(r) {
     </section>
   `;
 
-  setTimeout(runConfetti, 180);
-  enhanceAfterRender();
+    setTimeout(runConfetti, 180);
+    enhanceAfterRender();
 }
 
 async function adminDashboard() {
-  const events = await api("/api/admin/events");
-  const reservations = await api("/api/admin/reservations");
+    const events = await api("/api/admin/events");
+    const reservations = await api("/api/admin/reservations");
 
-  const free = events.reduce((s, e) => s + Number(e.seats_available || 0), 0);
-  const active = events.filter(e => e.status === "active").length;
-  const totalRevenue = reservations.reduce((s, r) => s + Number(r.total_price || 0), 0);
+    const free = events.reduce((s, e) => s + Number(e.seats_available || 0), 0);
+    const active = events.filter(e => e.status === "active").length;
+    const totalRevenue = reservations.reduce((s, r) => s + Number(r.total_price || 0), 0);
 
-  document.querySelector("#adminMain").innerHTML = `
+    document.querySelector("#adminMain").innerHTML = `
     <h1>Dashboard</h1>
     <p class="meta">Szybki podgląd działania systemu rezerwacji.</p>
 
@@ -1550,6 +1643,61 @@ async function adminDashboard() {
     </div>
   `;
 
-  enhanceAfterRender();
+    enhanceAfterRender();
 }
 
+
+function scrollAdminTop() {
+    const adminMain = document.querySelector(".admin-main");
+    if (adminMain) {
+        adminMain.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+}
+
+function ensureAdminScrollButton() {
+    let btn = document.querySelector("#adminScrollTopBtn");
+
+    if (!btn) {
+        btn = document.createElement("button");
+        btn.id = "adminScrollTopBtn";
+        btn.className = "scroll-top-btn";
+        btn.innerHTML = "↑ Góra";
+        btn.onclick = scrollAdminTop;
+        document.body.appendChild(btn);
+    }
+
+    const adminMain = document.querySelector(".admin-main");
+
+    if (!adminMain) {
+        btn.classList.remove("visible");
+        return;
+    }
+
+    adminMain.onscroll = function () {
+        if (adminMain.scrollTop > 280) btn.classList.add("visible");
+        else btn.classList.remove("visible");
+    };
+}
+
+function wrapAdminTables() {
+    const adminMain = document.querySelector("#adminMain");
+    if (!adminMain) return;
+
+    adminMain.querySelectorAll("table.table").forEach(table => {
+        if (table.parentElement && table.parentElement.classList.contains("table-scroll")) return;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "table-scroll";
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+    });
+}
+
+function enhanceAdminScroll() {
+    setTimeout(() => {
+        wrapAdminTables();
+        ensureAdminScrollButton();
+    }, 80);
+}
