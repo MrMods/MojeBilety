@@ -8,7 +8,7 @@ export async function onRequestGet(context) {
   const { DB } = context.env;
 
   if (!isAdmin(context.request, context.env)) {
-    return Response.json({ error: "Brak dostępu." }, { status: 401 });
+    return Response.json({ error: "Brak dostępu do rezerwacji." }, { status: 401 });
   }
 
   const result = await DB.prepare(`
@@ -36,7 +36,7 @@ export async function onRequestGet(context) {
     ORDER BY r.created_at DESC
   `).all();
 
-  return Response.json(result.results);
+  return Response.json(result.results || []);
 }
 
 export async function onRequestPost(context) {

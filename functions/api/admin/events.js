@@ -5,14 +5,23 @@
 }
 
 function rowLetter(index) {
-  return String.fromCharCode(64 + index);
+  let n = Number(index);
+  let label = "";
+
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    label = String.fromCharCode(65 + rem) + label;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return label;
 }
 
 export async function onRequestGet(context) {
   const { DB } = context.env;
 
   if (!isAdmin(context.request, context.env)) {
-    return Response.json({ error: "Brak dostępu." }, { status: 401 });
+    return Response.json({ error: "Brak dostępu do panelu administratora." }, { status: 401 });
   }
 
   const result = await DB.prepare(`
@@ -24,10 +33,10 @@ export async function onRequestGet(context) {
     FROM events e
     LEFT JOIN seats s ON s.event_id = e.id
     GROUP BY e.id
-    ORDER BY e.event_date ASC
+    ORDER BY e.event_date ASC, e.event_time ASC
   `).all();
 
-  return Response.json(result.results);
+  return Response.json(result.results || []);
 }
 
 export async function onRequestPost(context) {

@@ -5,10 +5,31 @@
 }
 
 function rowLetter(index) {
-    return String.fromCharCode(64 + index);
+    let n = Number(index);
+    let label = "";
+
+    while (n > 0) {
+        const rem = (n - 1) % 26;
+        label = String.fromCharCode(65 + rem) + label;
+        n = Math.floor((n - 1) / 26);
+    }
+
+    return label;
 }
 
 async function rebuildSeats(DB, eventId, rows, seatsPerRow, basePrice) {
+    await DB.prepare(`
+        DELETE FROM reservation_seats
+        WHERE reservation_id IN (
+            SELECT id FROM reservations WHERE event_id = ? AND status = 'cancelled'
+        )
+    `).bind(eventId).run();
+
+    await DB.prepare(`
+        DELETE FROM reservations
+        WHERE event_id = ? AND status = 'cancelled'
+    `).bind(eventId).run();
+
     await DB.prepare(`DELETE FROM seats WHERE event_id = ?`).bind(eventId).run();
 
     for (let r = 1; r <= rows; r++) {
@@ -57,6 +78,7 @@ export async function onRequestPut(context) {
     }
 
     const layoutChanged = rows !== Number(existing.rows_count) || seatsPerRow !== Number(existing.seats_per_row);
+    const priceChanged = targetPrice !== Number(existing.price);
 
     if (layoutChanged) {
         if (targetStatus !== "draft") {
@@ -113,6 +135,17 @@ export async function onRequestPut(context) {
 
     if (layoutChanged) {
         await rebuildSeats(DB, id, rows, seatsPerRow, targetPrice);
+    } else if (priceChanged) {
+        await DB.prepare(`
+            UPDATE seats
+            SET price = CASE
+                WHEN seat_type = 'vip' THEN ?
+                ELSE ?
+            END
+            WHERE event_id = ?
+              AND status != 'reserved'
+              AND seat_type IN ('standard', 'vip')
+        `).bind(targetPrice + 50, targetPrice, id).run();
     }
 
     const updated = await DB.prepare(
@@ -148,6 +181,10 @@ export async function onRequestDelete(context) {
     }
 
     if (mode === "delete") {
+        await DB.prepare(`
+            DELETE FROM reservation_seats
+            WHERE reservation_id IN (SELECT id FROM reservations WHERE event_id = ?)
+        `).bind(id).run();
         await DB.prepare(`DELETE FROM reservations WHERE event_id = ?`).bind(id).run();
         await DB.prepare(`DELETE FROM seats WHERE event_id = ?`).bind(id).run();
         await DB.prepare(`DELETE FROM events WHERE id = ?`).bind(id).run();

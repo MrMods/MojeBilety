@@ -8,7 +8,7 @@ compatibility_date = "2026-06-04"
 [[d1_databases]]
 binding = "DB"
 database_name = "mojebilety-db"
-database_id = "34106658-1623-4bfc-b2b6-770e8adfb694"
+database_id = "32040221-75de-4786-b945-c000915523c0"
 
 [vars]
 ADMIN_TOKEN = "demo-admin-token"

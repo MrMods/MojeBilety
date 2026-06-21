@@ -99,7 +99,7 @@ async function renderEvent(id) {
     currentSeats = data.seats;
 
     const adminPreview = isAdminPreviewMode();
-    const canReserve = currentEvent.status === "active";
+    const canReserve = currentEvent.status === "active" && Number(currentEvent.seats_available || 0) > 0;
     const panelClass = currentEvent.template === "concert" ? "concert-panel" : "classic-panel";
     const reserveButton = canReserve || adminPreview
         ? `<button class="primary" style="width:100%" onclick="location.hash='reserve/${currentEvent.id}'">${canReserve ? "Wybierz miejsce" : "Podgląd wyboru miejsc"}</button>`
@@ -427,7 +427,21 @@ async function router() {
         else await renderHome();
 
         enhanceAfterRender();
+
+        // SAFE FIX: przycisk powrotu musi odświeżać się także po ręcznym router(),
+        // bo podgląd admina używa history.pushState(), a to nie wywołuje hashchange.
+        if (typeof window.updateFloatingBackButton === "function") {
+            window.updateFloatingBackButton();
+            setTimeout(window.updateFloatingBackButton, 80);
+            setTimeout(window.updateFloatingBackButton, 250);
+        }
     } catch (err) {
+        const floatingBack = document.querySelector("#eventFloatingBack");
+        if (floatingBack) {
+            floatingBack.style.display = "none";
+            floatingBack.classList.remove("visible");
+        }
+
         app.innerHTML = `
       <section class="container">
         <div class="panel">
@@ -607,7 +621,7 @@ async function lookupReservation() {
     }
 
     try {
-        const r = await api(`/api/reservation/${code}`);
+        const r = await api(`/api/reservation/${encodeURIComponent(code)}`);
         const seats = r.seats || [];
 
         const seatsHtml = seats.map(s => `
@@ -1462,14 +1476,14 @@ async function renderReserve(id) {
     multiSeatIds = [];
 
     const adminPreview = isAdminPreviewMode();
-    const canReserve = currentEvent.status === "active";
+    const canReserve = currentEvent.status === "active" && Number(currentEvent.seats_available || 0) > 0;
 
     if (!canReserve && !adminPreview) {
         app.innerHTML = `
       <section class="container">
         <div class="panel glass-panel">
           <h1>Rezerwacja niedostępna</h1>
-          <p>To wydarzenie nie jest aktywne.</p>
+          <p>To wydarzenie nie jest aktywne albo nie ma już wolnych miejsc.</p>
         </div>
       </section>
     `;
@@ -1622,7 +1636,7 @@ async function adminDashboard() {
 
     const free = events.reduce((s, e) => s + Number(e.seats_available || 0), 0);
     const active = events.filter(e => e.status === "active").length;
-    const totalRevenue = reservations.reduce((s, r) => s + Number(r.total_price || 0), 0);
+    const totalRevenue = reservations.filter(r => r.status === "active").reduce((s, r) => s + Number(r.total_price || 0), 0);
 
     document.querySelector("#adminMain").innerHTML = `
     <h1>Dashboard</h1>
@@ -1701,3 +1715,232 @@ function enhanceAdminScroll() {
         ensureAdminScrollButton();
     }, 80);
 }
+
+(function () {
+  "use strict";
+
+  let internalBack = false;
+  let lastAdminKey = null;
+
+  const adminTabs = [
+    {
+      key: "dashboard",
+      names: ["dashboard", "kokpit", "panel główny", "panel glowny"]
+    },
+    {
+      key: "events",
+      names: ["wydarzenia", "lista wydarzeń", "lista wydarzen"]
+    },
+    {
+      key: "reservations",
+      names: ["rezerwacje", "lista rezerwacji"]
+    },
+    {
+      key: "add-event",
+      names: ["dodaj wydarzenie", "nowe wydarzenie", "utwórz wydarzenie", "utworz wydarzenie"]
+    }
+  ];
+
+  function normalize(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isAdminVisible() {
+    return !!(
+      document.querySelector(".admin-layout") ||
+      document.querySelector(".admin-main") ||
+      document.querySelector(".sidebar")
+    );
+  }
+
+  function getAdminKeyFromText(text) {
+    const clean = normalize(text);
+
+    for (const tab of adminTabs) {
+      if (tab.names.some(name => clean.includes(name))) {
+        return tab.key;
+      }
+    }
+
+    return null;
+  }
+
+  function findAdminNavButton(key) {
+    const tab = adminTabs.find(t => t.key === key);
+    if (!tab) return null;
+
+    const candidates = Array.from(document.querySelectorAll(
+      ".sidebar button, .sidebar a, .admin-layout button, .admin-layout a, .admin-nav button, .admin-nav a"
+    ));
+
+    return candidates.find(el => {
+      const text = normalize(el.textContent || "");
+      return tab.names.some(name => text.includes(name));
+    });
+  }
+
+  function markCurrentStateIfNeeded() {
+    if (!isAdminVisible()) return;
+
+    const state = history.state || {};
+
+    if (!state.__adminHistory) {
+      history.replaceState({
+        ...state,
+        __adminHistory: true,
+        adminTab: lastAdminKey || "dashboard"
+      }, "", location.href);
+    }
+  }
+
+  function pushAdminState(key) {
+    if (!key || internalBack) return;
+    if (!isAdminVisible()) return;
+
+    markCurrentStateIfNeeded();
+
+    if (lastAdminKey === key) return;
+
+    lastAdminKey = key;
+
+    history.pushState({
+      ...(history.state || {}),
+      __adminHistory: true,
+      adminTab: key
+    }, "", location.href);
+  }
+
+  document.addEventListener("click", function (e) {
+    const el = e.target.closest("button, a");
+    if (!el) return;
+    if (!isAdminVisible()) return;
+
+    const key = getAdminKeyFromText(el.textContent || "");
+    if (!key) return;
+
+    setTimeout(function () {
+      pushAdminState(key);
+    }, 80);
+  }, true);
+
+  window.addEventListener("popstate", function (e) {
+    if (!isAdminVisible()) return;
+
+    const state = e.state || {};
+    const key = state.adminTab;
+
+    if (!state.__adminHistory || !key) return;
+
+    const btn = findAdminNavButton(key);
+    if (!btn) return;
+
+    internalBack = true;
+
+    setTimeout(function () {
+      btn.click();
+      lastAdminKey = key;
+
+      setTimeout(function () {
+        internalBack = false;
+      }, 250);
+    }, 50);
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(markCurrentStateIfNeeded, 700);
+  });
+
+  window.addEventListener("hashchange", function () {
+    setTimeout(function () {
+      if (isAdminVisible()) {
+        lastAdminKey = lastAdminKey || "dashboard";
+        markCurrentStateIfNeeded();
+      }
+    }, 700);
+  });
+})();
+
+
+(function () {
+  "use strict";
+
+  function applyFloatingBackStyle(btn) {
+    Object.assign(btn.style, {
+      boxSizing: "border-box",
+      position: "fixed",
+      top: window.matchMedia("(max-width: 700px)").matches ? "82px" : "84px",
+      left: window.matchMedia("(max-width: 700px)").matches ? "12px" : "18px",
+      right: "auto",
+      bottom: "auto",
+      zIndex: "99999",
+      alignItems: "center",
+      gap: "8px",
+      maxWidth: window.matchMedia("(max-width: 700px)").matches ? "calc(100vw - 24px)" : "calc(100vw - 36px)",
+      padding: window.matchMedia("(max-width: 700px)").matches ? "10px 13px" : "11px 16px",
+      borderRadius: "999px",
+      background: "rgba(255, 255, 255, 0.96)",
+      color: "#111827",
+      border: "1px solid rgba(226, 232, 240, 0.95)",
+      boxShadow: "0 14px 38px rgba(15, 23, 42, 0.22)",
+      backdropFilter: "blur(12px)",
+      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+      fontSize: window.matchMedia("(max-width: 700px)").matches ? "13px" : "14px",
+      fontWeight: "900",
+      lineHeight: "1.1",
+      cursor: "pointer",
+      whiteSpace: "nowrap"
+    });
+  }
+
+  function ensureFloatingBackButton() {
+    let btn = document.querySelector("#eventFloatingBack");
+
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "eventFloatingBack";
+      btn.className = "event-floating-back";
+      btn.type = "button";
+      btn.innerHTML = '<span class="arrow">←</span><span>Wróć do wszystkich wydarzeń</span>';
+
+      btn.addEventListener("click", function () {
+        location.hash = "home";
+      });
+
+      document.body.appendChild(btn);
+    }
+
+    applyFloatingBackStyle(btn);
+    return btn;
+  }
+
+  function updateFloatingBackButton() {
+    const hash = location.hash.replace(/^#/, "");
+    const btn = ensureFloatingBackButton();
+
+    if (hash.startsWith("event/")) {
+      btn.style.display = "inline-flex";
+      btn.classList.add("visible");
+    } else {
+      btn.style.display = "none";
+      btn.classList.remove("visible");
+    }
+
+    document.querySelectorAll(".event-back-wrap, .stable-event-back-wrap, .stable-back-event").forEach(function (el) {
+      el.remove();
+    });
+  }
+  
+  window.updateFloatingBackButton = updateFloatingBackButton;
+
+  document.addEventListener("DOMContentLoaded", updateFloatingBackButton);
+  window.addEventListener("hashchange", updateFloatingBackButton);
+  window.addEventListener("popstate", updateFloatingBackButton);
+  window.addEventListener("resize", updateFloatingBackButton);
+
+  setTimeout(updateFloatingBackButton, 100);
+  setTimeout(updateFloatingBackButton, 350);
+  setTimeout(updateFloatingBackButton, 900);
+})();

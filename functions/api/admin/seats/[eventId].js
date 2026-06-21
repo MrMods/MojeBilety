@@ -24,7 +24,7 @@ export async function onRequestGet(context) {
     SELECT *
     FROM seats
     WHERE event_id = ?
-    ORDER BY row_label ASC, seat_number ASC
+    ORDER BY LENGTH(row_label) ASC, row_label ASC, seat_number ASC
   `).bind(eventId).all();
 
   return Response.json({
