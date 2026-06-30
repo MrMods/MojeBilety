@@ -1355,19 +1355,43 @@ function revealElements() {
 }
 
 function runConfetti() {
-    const colors = ["#6d28d9", "#2563eb", "#22c55e", "#f59e0b", "#ef4444", "#a855f7"];
+    const colors = [
+        "#6d28d9", "#2563eb", "#22c55e",
+        "#f59e0b", "#ef4444", "#a855f7",
+        "#06b6d4", "#f97316", "#eab308"
+    ];
 
-    for (let i = 0; i < 38; i++) {
+    const bursts = [
+        { x: 50, y: -5 },
+        { x: 25, y: -5 },
+        { x: 75, y: -5 }
+    ];
+
+    for (let i = 0; i < 95; i++) {
         const piece = document.createElement("div");
+        const burst = bursts[i % bursts.length];
+
         piece.className = "confetti-piece";
-        piece.style.left = Math.random() * 100 + "vw";
+
+        piece.style.left = burst.x + "vw";
+        piece.style.top = burst.y + "vh";
         piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-        piece.style.animationDelay = (Math.random() * .45) + "s";
-        piece.style.transform = `rotate(${Math.random() * 180}deg)`;
+
+        piece.style.width = (6 + Math.random() * 8) + "px";
+        piece.style.height = (10 + Math.random() * 14) + "px";
+        piece.style.borderRadius = Math.random() > 0.55 ? "50%" : "3px";
+
+        piece.style.setProperty("--x", ((Math.random() - 0.5) * 95) + "vw");
+        piece.style.setProperty("--y", (70 + Math.random() * 45) + "vh");
+        piece.style.setProperty("--r1", (Math.random() * 360) + "deg");
+        piece.style.setProperty("--r2", (720 + Math.random() * 720) + "deg");
+
+        piece.style.animationDelay = (Math.random() * 0.3) + "s";
+        piece.style.animationDuration = (2.4 + Math.random() * 1.4) + "s";
 
         document.body.appendChild(piece);
 
-        setTimeout(() => piece.remove(), 2300);
+        setTimeout(() => piece.remove(), 5000);
     }
 }
 

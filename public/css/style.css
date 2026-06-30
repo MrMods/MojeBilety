@@ -195,11 +195,10 @@ input:focus,select:focus,textarea:focus{border-color:rgba(109,40,217,.55) !impor
 @keyframes revealUp{from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);}}
 .confirm.panel{animation:successPop .55s cubic-bezier(.2,.9,.25,1.2) both;}
 @keyframes successPop{0%{opacity:0;transform:translateY(18px) scale(.94);} 70%{transform:translateY(0) scale(1.02);} 100%{opacity:1;transform:translateY(0) scale(1);}}
-.confetti-piece{position:fixed;width:9px;height:14px;top:-20px;z-index:9999;opacity:.95;animation:confettiFall 1.7s ease-out forwards;pointer-events:none;}
+.confetti-piece{position:fixed;z-index:999999;opacity:.95;pointer-events:none;transform:translate(-50%, -50%) rotate(var(--r1));animation:confettiBurst 3s cubic-bezier(.16,.85,.32,1) forwards;box-shadow:0 0 10px rgba(15,23,42,.12);}
+@keyframes confettiBurst{0%{transform:translate(-50%, -50%) translate(0,0) rotate(var(--r1));opacity:1;}20%{opacity:1;}100%{transform:translate(-50%, -50%) translate(var(--x), var(--y)) rotate(var(--r2));opacity:0;}}
 @keyframes confettiFall{to{transform:translateY(110vh) rotate(620deg);opacity:0;}}
-@media(prefers-reduced-motion:reduce){
-  *,*:before,*:after{animation:none !important;transition:none !important;}
-}
+@media(prefers-reduced-motion:reduce){*:not(.confetti-piece),*:not(.confetti-piece):before,*:not(.confetti-piece):after{animation:none !important;transition:none !important;}}
 .glass-panel{background:rgba(255,255,255,.76) !important;backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55) !important;box-shadow:0 24px 80px rgba(15,23,42,.14) !important;}
 .dark-glass{background:rgba(7,11,20,.72) !important;backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.14) !important;color:#fff;}
 .progress-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 22px;}
